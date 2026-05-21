@@ -1,5 +1,5 @@
 ### Work List
-- [ ] Write a docker client that will be used by the tools to access docker end points through the SDK.
+- [x] Write a docker client that will be used by the tools to access docker end points through the SDK.
 - [ ] Write a tool adapter that takes the name of the tool and its input so that we can do confirmation.
 - [ ] Make a tool interface and decide what docker functionalities to include in the tools.
 - [ ] Implement context initialization that will get included in the system prompt to indicate the current state of the user.
