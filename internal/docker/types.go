@@ -14,8 +14,8 @@ type ContainerSummary struct {
 	ID      string        `json:"id"`
 	Name    string        `json:"name"`
 	Image   string        `json:"image"`
-	State   string        `json:"state"` 
-	Status  string        `json:"status"` 
+	State   string        `json:"state"`
+	Status  string        `json:"status"`
 	Ports   []PortMapping `json:"ports,omitempty"`
 	Created time.Time     `json:"created"`
 }
@@ -23,13 +23,13 @@ type ContainerSummary struct {
 type PortMapping struct {
 	HostPort      string `json:"host_port"`
 	ContainerPort string `json:"container_port"`
-	Protocol      string `json:"protocol"` 
+	Protocol      string `json:"protocol"`
 }
 
 type ImageSummary struct {
 	ID      string    `json:"id"`
 	Tags    []string  `json:"tags"`
-	Size    int64     `json:"size"` 
+	Size    int64     `json:"size"`
 	Created time.Time `json:"created"`
 }
 

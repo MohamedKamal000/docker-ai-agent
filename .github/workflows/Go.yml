@@ -1,0 +1,58 @@
+name: Go CI
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+  pull_request:
+
+jobs:
+  fmt:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+          cache: 'true'
+
+      - name: Check code formatting
+        run: |
+          unformatted=$(gofmt -l .)
+            if [ -n "$unformatted" ]; then
+                echo "The following files are not properly formatted:"
+                echo "$unformatted"
+                echo "run 'go fmt ./...' to format the code."
+                exit 1
+            fi
+  
+  
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+          cache: 'true'
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -timeout 20m ./...
+        shell: bash
+

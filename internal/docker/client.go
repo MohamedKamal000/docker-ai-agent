@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -26,7 +27,7 @@ var (
 func Init(opts ...client.Opt) error {
 	once.Do(func() {
 		defaultOpts := []client.Opt{
-			client.FromEnv,           
+			client.FromEnv,
 			client.WithAPIVersionNegotiation(),
 		}
 		defaultOpts = append(defaultOpts, opts...)
