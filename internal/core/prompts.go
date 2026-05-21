@@ -5,7 +5,7 @@ import (
 	"text/template"
 )
 
-const System_Prompt = `
+const System_Prompt_Template = `
 ROLE
 You are a Docker operations agent responsible for controlling and inspecting a local Docker environment using available tools.
 
@@ -37,16 +37,52 @@ TOOL USAGE
 You may use only the tools provided by the runtime.
 Each action must map to a valid tool call.
 ---
-Current Docker Containers:
+Current Docker Environment State:
+
+Containers:
 {{range .Containers}}
 - Name: {{.Name}}
   Image: {{.Image}}
   Status: {{.Status}}
-  ID: {{.Id}}
+  ID: {{.ID}}
+  State: {{.State}}
+  {{if .Ports}}
+  Ports:
+  {{range .Ports}}
+    - HostPort: {{.HostPort}}
+      ContainerPort: {{.ContainerPort}}
+      Protocol: {{.Protocol}}
+  {{end}}
+  {{end}}
+Created: {{.Created}}
+{{end}}
+
+
+Images:
+{{range .Images}}
+- ID: {{.ID}}
+  Tags: {{range .Tags}}{{.}} {{end}}
+  Size: {{.Size}}
+  Created: {{.Created}}
+{{end}}
+
+
+Volumes:
+{{range .Volumes}}
+- Name: {{.Name}}
+  Driver: {{.Driver}}
+{{end}}
+
+
+Networks:
+{{range .Networks}}
+- Name: {{.Name}}
+  Driver: {{.Driver}}
+  Scope: {{.Scope}}
 {{end}}
 `
 
-const User_Prompt = `
+const User_Prompt_Template = `
 GOAL
 {{.Goal}}
 
