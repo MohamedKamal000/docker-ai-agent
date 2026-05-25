@@ -33,6 +33,7 @@ func NewModelConfig(provider LLMProvider, modelName string, temperature float32,
 type ContextAction struct {
 	Thought string `json:"thought" description:"the ai thought about the next action"`
 	Action  string `json:"action" description:"the final action the ai going to take"`
+	Done    bool
 }
 
 // genkit tool parsing, we will parse the ai request for the tool, run it after confirming
