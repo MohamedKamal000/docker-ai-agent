@@ -9,29 +9,46 @@ import "docker-cli/internal/models"
 // and move the interface and the implementation to it, we can also add more implementations later on if needed
 
 type MemoryStore interface {
-	Save(step models.ContextStep) error
-	Load() ([]models.ContextStep, error)
+	Save(userGoal string, toolsExecuted map[string]string, steps []models.AgentResult) error
+	Load() ([]models.ChatInteraction, error)
 	Clear() error
 }
 
 type StaticMemoryStore struct {
-	Memory []models.ContextStep
+	Memory []models.ChatInteraction
 }
 
 func NewStaticMemoryStore() *StaticMemoryStore {
-	return &StaticMemoryStore{Memory: []models.ContextStep{}}
+	return &StaticMemoryStore{Memory: []models.ChatInteraction{}}
 }
 
-func (sms *StaticMemoryStore) Save(step models.ContextStep) error {
-	sms.Memory = append(sms.Memory, step)
+func (sms *StaticMemoryStore) Save(userGoal string, toolsExecuted map[string]string, steps []models.AgentResult) error {
+	interaction := models.ChatInteraction{
+		UserRequest:   userGoal,
+		ToolsExecuted: toolsExecuted,
+	}
+
+	for _, step := range steps {
+		if step.IsStructured {
+			interaction.LLMThoughts = append(interaction.LLMThoughts, step.Structured.Thought)
+			if step.Structured.Done {
+				interaction.FinalResponse = step.Structured.FinalResponse
+				break
+			}
+		} else {
+			interaction.UnstructuredOutput = append(interaction.UnstructuredOutput, step.Raw)
+		}
+	}
+
+	sms.Memory = append(sms.Memory, interaction)
 	return nil
 }
 
-func (sms *StaticMemoryStore) Load() ([]models.ContextStep, error) {
+func (sms *StaticMemoryStore) Load() ([]models.ChatInteraction, error) {
 	return sms.Memory, nil
 }
 
 func (sms *StaticMemoryStore) Clear() error {
-	sms.Memory = []models.ContextStep{}
+	sms.Memory = []models.ChatInteraction{}
 	return nil
 }

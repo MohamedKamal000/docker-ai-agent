@@ -21,8 +21,11 @@ func NewMockAgent(config core.ModelConfig, ctx context.Context) *Agent {
 	agentLoop := &MockAgentLoop{}
 
 	return &Agent{
-		AgentLoop:   agentLoop,
-		ChatSession: chatSession,
+		AgentLoop: agentLoop,
+		SessionContext: &core.LoopContext{
+			Memory: chatSession,
+			Tools:  nil,
+		},
 	}
 }
 

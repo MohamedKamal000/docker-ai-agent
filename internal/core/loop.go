@@ -3,27 +3,78 @@ package core
 import (
 	"context"
 	"docker-cli/internal/models"
+	"encoding/json"
+	"log/slog"
+
+	"github.com/firebase/genkit/go/ai"
 )
 
-// we can stream ai thoughts and also add in the prompt instructions that the ai need to write final summary as the response
 type AgentLoop interface {
 	Run(ctx context.Context, userGoal string, outputChannel chan<- string) error
 }
-
-type GenkitAgentLoop struct {
-	Client       GenkitClient
-	SystemPrompt string
+type LoopContext struct {
+	Memory MemoryStore
+	Tools  ToolRegistry
 }
 
-func formatAiAction(action models.ContextAction) string {
-	return "Thought: " + action.Thought + "\nAction: " + action.Action
+type GenkitAgentLoop struct {
+	Client         GenkitClient
+	Flow           AgentFlow
+	SessionContext *LoopContext
+}
+
+func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string) *GenkitAgentLoop {
+	flow := NewDockerAgentFlow(client, sessionContext.Tools, systemPrompt)
+	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow}
+}
+
+func formatAiAction(action models.AgentResult) string {
+	if action.IsStructured {
+		return "Thought: \n" + action.Structured.Thought + "\n"
+	}
+	return "Unstructured output: \n" + action.Raw + "\n"
+}
+
+func extractResult(resp *ai.ModelResponse) models.AgentResult {
+	if resp == nil {
+		return models.AgentResult{
+			Raw: "empty response",
+		}
+	}
+
+	raw := resp.Text()
+
+	var step models.AgentExecutionStep
+	err := json.Unmarshal([]byte(raw), &step)
+
+	if err == nil {
+		return models.AgentResult{
+			Structured:   &step,
+			IsStructured: true,
+		}
+	}
+
+	return models.AgentResult{
+		Raw:          raw,
+		IsStructured: false,
+	}
 }
 
 func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, writeChannel chan<- string) error {
 	defer close(writeChannel)
-	flow := NewDockerAgentFlow(gal.Client)
-	// we can make the memory this way for now, we need to think in the future on how to make it persistance
-	memory := NewStaticMemoryStore()
+	toolExec := NewToolExecutor(gal.SessionContext.Tools)
+	previousChat, err := gal.SessionContext.Memory.Load()
+	if err != nil {
+		return err
+	}
+	maxSteps := 3
+	step := 0
+	userInput := models.UserInputPrompt{
+		Goal:                userGoal,
+		CurrentGoalProgress: make([]models.AgentResult, 0),
+		PreviousChat:        previousChat,
+		ToolsExecuted:       map[string]string{},
+	}
 
 	for {
 		select {
@@ -31,33 +82,34 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, writeChann
 			return ctx.Err()
 		default:
 		}
-		previousChat, err := memory.Load()
+		if step >= maxSteps {
+			break
+		}
+		step++
+
+		aiStep, err := gal.Flow.Run(ctx, userInput)
 		if err != nil {
+			slog.Error("failed to run the flow, err=", err)
 			return err
 		}
 
-		userInput := models.UserInputPrompt{
-			Goal:    userGoal,
-			Context: previousChat,
-		}
+		agentOutput := extractResult(aiStep)
 
-		aiStep, err := flow.Run(ctx, userInput)
-		if err != nil {
-			return err
-		}
-
-		if aiStep.TakenAction.Done {
-			writeChannel <- "Agent has completed the goal."
+		if agentOutput.IsStructured && agentOutput.Structured.Done {
+			writeChannel <- "final ai response: " + agentOutput.Structured.FinalResponse + "\n"
+			err = gal.SessionContext.Memory.Save(userGoal, userInput.ToolsExecuted, userInput.CurrentGoalProgress)
 			break
 		}
 
-		writeChannel <- formatAiAction(aiStep.TakenAction)
-		// parse tool execution and use the tool adapter that needs to be implemented
-		// the parsing should determine if we will continue the loop or not
-
-		err = memory.Save(aiStep)
+		toolsResult, err := toolExec.ExecuteGenkitTool(ctx, aiStep)
 		if err != nil {
 			return err
+		}
+
+		writeChannel <- formatAiAction(agentOutput)
+		userInput.CurrentGoalProgress = append(userInput.CurrentGoalProgress, agentOutput)
+		for k, v := range toolsResult {
+			userInput.ToolsExecuted[k] = v
 		}
 	}
 
