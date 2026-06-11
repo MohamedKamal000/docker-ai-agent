@@ -89,7 +89,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, writeChann
 
 		aiStep, err := gal.Flow.Run(ctx, userInput)
 		if err != nil {
-			slog.Error("failed to run the flow, err=", err)
+			slog.Error("failed to run the flow", "err", err)
 			return err
 		}
 

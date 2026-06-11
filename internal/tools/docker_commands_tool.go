@@ -76,7 +76,7 @@ func (d *DockerCommandsTool) ShouldRaiseWarning(input any) (string, bool) {
 	cmd := m["command"].(string)
 	res := docker.IsDestructive(cmd)
 	if res {
-		return fmt.Sprintf("docker command %s contains a destructive command", res), true
+		return fmt.Sprintf("docker command %s contains a destructive command", cmd), true
 	}
 
 	return "", false
