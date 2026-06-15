@@ -6,7 +6,6 @@ import (
 	"docker-cli/internal/docker"
 	"docker-cli/internal/tools"
 	"fmt"
-	"log"
 
 	"github.com/firebase/genkit/go/genkit"
 )
@@ -33,31 +32,31 @@ func initalizeRegistery(g *genkit.Genkit, toolRegistry core.ToolRegistry, toolsT
 	return nil
 }
 
-func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []string) *Agent {
+func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []string) (*Agent, error) {
 	genkitClient := core.NewGenkitClient(config)
 	chatSession := core.NewStaticMemoryStore()
 	toolRegistry := core.NewGenkitToolRegistry()
 	err := initalizeRegistery(genkitClient.G, toolRegistry, toolsToRegister)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	sessionContext := &core.LoopContext{
 		Memory: chatSession,
 		Tools:  toolRegistry}
 	err = docker.Init()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	dockerContext, err := docker.GetContext(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	systemPrompt, err := core.ParsePrompt(core.System_Prompt_Template, dockerContext)
 
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt)
@@ -65,5 +64,5 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	return &Agent{
 		AgentLoop:      agentLoop,
 		SessionContext: sessionContext,
-	}
+	}, nil
 }

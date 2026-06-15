@@ -28,7 +28,7 @@ type GenkitClient struct {
 }
 
 func NewGenkitClient(config ModelConfig) *GenkitClient {
-	g := genkit.Init(context.Background(), providerToGenkitPlugin(config.Provider, config.ApiKey),
+	g := genkit.Init(context.Background(), providerToGenkitPlugin(stringToProvider(config.Provider), config.ApiKey),
 		genkit.WithDefaultModel(config.ModelName))
 
 	return &GenkitClient{
