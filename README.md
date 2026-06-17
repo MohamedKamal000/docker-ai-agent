@@ -1,10 +1,10 @@
-# Docker AI Agent CLI
+# Docker AI Agent
 
 A Go-based AI agent that helps you inspect and operate local Docker environments through a CLI (and planned TUI/web frontends). It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
 
 ## Status
 
-This project is in active development. Core scaffolding is in place (Docker SDK wrapper, prompt templates, Genkit client, Cobra CLI), while tool execution, confirmation flow, persistence, and richer commands are still in progress.
+This project is in active development. Core features are in place, including a Docker SDK wrapper, prompt templates, a Genkit client for LLM integration, a tool registry, and a tool execution loop. The CLI is functional for agent-based chat. Next steps involve adding more tools, implementing a user confirmation flow, and building out planned commands like `containerize` and `diagnose`.
 
 ## Architecture
 
@@ -14,7 +14,8 @@ At a high level:
 
 - CLI (Cobra) parses commands/flags and passes the user goal to the agent runtime.
 - The AI agent builds prompts from the current Docker context and user intent.
-- A main loop selects the next action, maps it to a tool call, and stores results in memory.
+- A main loop selects the next action, maps it to a tool call from the **Tool Registry**, and stores results in memory.
+- The **Tool Registry** discovers and manages available tools (`internal/tools`).
 - The Docker SDK wrapper provides structured access to containers, images, volumes, and networks.
 - LLM providers are pluggable via Genkit (Gemini, OpenAI, Anthropic).
 
@@ -23,6 +24,7 @@ At a high level:
 - Docker environment snapshotting via the SDK wrapper (`internal/docker`).
 - Prompt templates for system + user execution context (`internal/core/prompts.go`).
 - Genkit-backed LLM client for multiple providers (`internal/core/genkit_client.go`).
+- **Tool Registry and Executor** for dynamically calling Docker commands (`internal/core/tool_registry.go`, `internal/tools/docker_commands_tool.go`).
 - CLI commands for agent chat and planned docker workflows (`cmd/*`).
 
 ## Prerequisites
@@ -33,18 +35,48 @@ At a high level:
 
 ## Configuration
 
-Set the provider API key for the model you use. Example for Gemini:
+The agent can be configured via a `config.json` file or environment variables.
 
-```bash
-export GEMINI_KEY=your_key_here
+### Config File
+
+Create a `config.json` file in the root of the project. You can use the `-c` or `--config` flag to specify a different path.
+
+```json
+{
+  "provider": "Gemini",
+  "model-name": "gemini-1.5-flash",
+  "temperature": 0.7,
+  "max-tokens": 1024,
+  "api-key": "your_api_key_here",
+  "max-iterations": 10
+}
 ```
 
-## Quick start
+Note: If `api-key` is not provided, the agent will look for environment variables: `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY` based on the provider.
 
-Run the agent chat command:
+### Environment Variables
+
+If you prefer not to include the API key in the config file, you can set it as an environment variable.
+
+Example for Gemini:
 
 ```bash
-go run . agent-chat "How do I view running containers?"
+export GEMINI_API_KEY=your_key_here
+```
+
+## How to Use
+
+Run the `agent-chat` command with a request message.
+
+### Flags
+
+- `-c`, `--config`: Path to the configuration file (default: `config.json`).
+- `-m`, `--request`: The request/question for the AI agent.
+
+### Example
+
+```bash
+go run . agent-chat -m "How do I view running containers?"
 ```
 
 ## CLI commands (current)
@@ -58,10 +90,10 @@ go run . agent-chat "How do I view running containers?"
 
 ```
 cmd/                 Cobra CLI commands
-internal/core/       Agent loop, prompts, Genkit client
+internal/core/       Agent loop, prompts, Genkit client, tool registry
 internal/docker/     Docker SDK wrapper + exec helpers
 internal/models/     Shared data models
-internal/tools/      Tool registry (planned)
+internal/tools/      Tool definitions (e.g., Docker commands)
 ```
 
 ## Contributing
