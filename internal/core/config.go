@@ -21,11 +21,12 @@ const (
 )
 
 type ModelConfig struct {
-	Provider    string  `json:"provider"`
-	ModelName   string  `json:"model-name"`
-	Temperature float32 `json:"temperature,omitempty"`
-	MaxTokens   uint32  `json:"max-tokens,omitempty"`
-	ApiKey      string  `json:"api-key"`
+	Provider      string  `json:"provider"`
+	ModelName     string  `json:"model-name"`
+	Temperature   float32 `json:"temperature,omitempty"`
+	MaxTokens     uint32  `json:"max-tokens,omitempty"`
+	ApiKey        string  `json:"api-key"`
+	MaxIterations int     `json:"max-iterations"`
 }
 
 func stringToProvider(provider string) LLMProvider {
@@ -78,6 +79,10 @@ func ModelConfigFromJsonFile(filepath string) (ModelConfig, error) {
 	}
 	if stringToProvider(result.Provider) == Unknown {
 		return ModelConfig{}, fmt.Errorf("provider %s is not supported", result.Provider)
+	}
+
+	if result.MaxIterations < 0 {
+		return ModelConfig{}, fmt.Errorf("max iterations can't be negative")
 	}
 
 	if result.ApiKey == "" {

@@ -47,7 +47,6 @@ func (d *DockerCommandsTool) Call(ctx context.Context, input any) (string, error
 		return "", fmt.Errorf("failed to cast input to docker Command input")
 	}
 	cmd := m["command"].(string)
-
 	res, err := docker.Exec(ctx, cmd)
 
 	if err != nil {
@@ -76,7 +75,7 @@ func (d *DockerCommandsTool) ShouldRaiseWarning(input any) (string, bool) {
 	cmd := m["command"].(string)
 	res := docker.IsDestructive(cmd)
 	if res {
-		return fmt.Sprintf("docker command %s contains a destructive command", cmd), true
+		return fmt.Sprintf("docker command \"%s\" contains a destructive command\n", cmd), true
 	}
 
 	return "", false

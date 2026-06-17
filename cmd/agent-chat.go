@@ -18,16 +18,30 @@ type DockerResponse struct {
 }
 
 func ReadAgentOutput(ctx context.Context, agent *app.Agent) {
-	outputChannel := make(chan string)
+	commChannel := &core.AgentCommunication{
+		ToUser:   make(chan core.AiResponse),
+		FromUser: make(chan core.UserCommand),
+	}
+	defer close(commChannel.FromUser)
 	go func() {
-		err := agent.AgentLoop.Run(ctx, userRequest, outputChannel)
-		if err != nil {
-			log.Fatal(err)
+		if err := agent.AgentLoop.Run(ctx, userRequest, commChannel); err != nil {
+			fmt.Printf("Agent error: %v\n", err)
 		}
 	}()
 
-	for output := range outputChannel {
-		fmt.Printf("Received from agent: %s\n", output)
+	for output := range commChannel.ToUser {
+		switch output.Type {
+		case core.Thoughts:
+			fmt.Printf("Agent:%s\n", output.Message)
+		case core.FinalResponse:
+			fmt.Printf("Agent Final Response:%s\n", output.Message)
+		case core.Warning:
+			fmt.Printf("WARNING \n %s", output.Message)
+			fmt.Printf("Do you wish to continue ? (y,n)\n")
+			var conf string
+			fmt.Scan(&conf)
+			commChannel.FromUser <- core.UserCommand{ShouldContinue: conf == "yes" || conf == "y"}
+		}
 	}
 }
 

@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"errors"
+	"docker-cli/internal/models"
 	"fmt"
 	"strings"
 	"time"
@@ -33,11 +33,8 @@ type MockAgentLoop struct {
 	Steps []string
 }
 
-func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, writeChannel chan<- string) error {
-	defer close(writeChannel)
-	if writeChannel == nil {
-		return errors.New("writeChannel is nil")
-	}
+func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, comm *core.AgentCommunication) error {
+	defer close(comm.ToUser)
 
 	steps := mal.Steps
 	if len(steps) == 0 {
@@ -50,11 +47,17 @@ func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, writeChannel
 			return ctx.Err()
 		default:
 		}
-		writeChannel <- step
+		comm.ToUser <- core.NewThought(models.AgentResult{
+			IsStructured: false,
+			Raw:          step,
+		})
 		time.Sleep(3 * time.Second) // Simulate processing time
 	}
 
-	writeChannel <- "Agent has completed the goal."
+	comm.ToUser <- core.NewFinal(models.AgentResult{
+		IsStructured: false,
+		Raw:          "Agent has completed the goal.",
+	})
 	return nil
 }
 
