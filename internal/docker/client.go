@@ -227,7 +227,6 @@ func ParseCommands(block string) []string {
 
 func Exec(ctx context.Context, command string) (ExecResult, error) {
 	must()
-
 	args, err := shellSplit(command)
 	if err != nil {
 		return ExecResult{}, fmt.Errorf("docker: cannot parse %q: %w", command, err)

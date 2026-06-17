@@ -3,27 +3,94 @@ package core
 import (
 	"context"
 	"docker-cli/internal/models"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/firebase/genkit/go/ai"
 )
 
-// we can stream ai thoughts and also add in the prompt instructions that the ai need to write final summary as the response
 type AgentLoop interface {
-	Run(ctx context.Context, userGoal string, outputChannel chan<- string) error
+	Run(ctx context.Context, userGoal string, comm *AgentCommunication) error
+}
+type LoopContext struct {
+	Memory MemoryStore
+	Tools  ToolRegistry
 }
 
 type GenkitAgentLoop struct {
-	Client       GenkitClient
-	SystemPrompt string
+	Client         GenkitClient
+	Flow           AgentFlow
+	SessionContext *LoopContext
 }
 
-func formatAiAction(action models.ContextAction) string {
-	return "Thought: " + action.Thought + "\nAction: " + action.Action
+func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string) *GenkitAgentLoop {
+	flow := NewDockerAgentFlow(client, sessionContext.Tools, systemPrompt)
+	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow}
 }
 
-func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, writeChannel chan<- string) error {
-	defer close(writeChannel)
-	flow := NewDockerAgentFlow(gal.Client)
-	// we can make the memory this way for now, we need to think in the future on how to make it persistance
-	memory := NewStaticMemoryStore()
+var jsonBlockRe = regexp.MustCompile("(?s)```json\\s*(\\{.*?})\\s*```")
+var jsonLooseRe = regexp.MustCompile("(?s)(\\{.*})")
+
+func extractJSON(raw string) string {
+	raw = strings.TrimSpace(raw)
+
+	// try ones with ``` first
+	if match := jsonBlockRe.FindStringSubmatch(raw); len(match) > 1 {
+		return match[1]
+	}
+
+	// fall back to normal {}
+	if match := jsonLooseRe.FindStringSubmatch(raw); len(match) > 1 {
+		return match[1]
+	}
+
+	return ""
+}
+
+func extractResult(resp *ai.ModelResponse) models.AgentResult {
+	if resp == nil {
+		return models.AgentResult{
+			Raw: "empty response",
+		}
+	}
+
+	raw := resp.Text()
+
+	jsonStr := extractJSON(raw)
+	if jsonStr != "" {
+		var step models.AgentExecutionStep
+		err := json.Unmarshal([]byte(jsonStr), &step)
+		if err == nil {
+			return models.AgentResult{
+				Structured:   &step,
+				IsStructured: true,
+			}
+		}
+	}
+
+	return models.AgentResult{
+		Raw:          raw,
+		IsStructured: false,
+	}
+}
+
+func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *AgentCommunication) error {
+	defer close(comm.ToUser)
+	toolExec := NewToolExecutor(gal.SessionContext.Tools)
+	previousChat, err := gal.SessionContext.Memory.Load()
+	if err != nil {
+		return err
+	}
+	step := 0
+	userInput := models.UserInputPrompt{
+		Goal:                userGoal,
+		CurrentGoalProgress: make([]models.AgentResult, 0),
+		PreviousChat:        previousChat,
+		ToolsExecuted:       map[string]string{},
+	}
 
 	for {
 		select {
@@ -31,33 +98,41 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, writeChann
 			return ctx.Err()
 		default:
 		}
-		previousChat, err := memory.Load()
+		if step >= gal.Client.Config.MaxIterations {
+			break
+		}
+		step++
+		if step != 0 {
+			time.Sleep(3 * time.Second) // waits 3 sec on purpose if not first call
+		}
+		aiStep, err := gal.Flow.Run(ctx, userInput)
 		if err != nil {
+			if strings.Contains(err.Error(), "503") {
+				fmt.Println("retrying in 5 second ...")
+				time.Sleep(5 * time.Second)
+				continue
+			} else if strings.Contains(err.Error(), "429") {
+				return fmt.Errorf("you have exceeded the limit")
+			}
 			return err
 		}
 
-		userInput := models.UserInputPrompt{
-			Goal:    userGoal,
-			Context: previousChat,
-		}
-
-		aiStep, err := flow.Run(ctx, userInput)
-		if err != nil {
-			return err
-		}
-
-		if aiStep.TakenAction.Done {
-			writeChannel <- "Agent has completed the goal."
+		agentOutput := extractResult(aiStep)
+		if agentOutput.IsStructured && agentOutput.Structured.Done {
+			comm.ToUser <- NewFinal(agentOutput)
+			err = gal.SessionContext.Memory.Save(userGoal, userInput.ToolsExecuted, userInput.CurrentGoalProgress)
 			break
 		}
 
-		writeChannel <- formatAiAction(aiStep.TakenAction)
-		// parse tool execution and use the tool adapter that needs to be implemented
-		// the parsing should determine if we will continue the loop or not
-
-		err = memory.Save(aiStep)
+		toolsResult, err := toolExec.ExecuteGenkitTool(ctx, aiStep, comm)
 		if err != nil {
 			return err
+		}
+
+		comm.ToUser <- NewThought(agentOutput)
+		userInput.CurrentGoalProgress = append(userInput.CurrentGoalProgress, agentOutput)
+		for k, v := range toolsResult {
+			userInput.ToolsExecuted[k] = v
 		}
 	}
 

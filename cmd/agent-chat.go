@@ -2,51 +2,81 @@ package cmd
 
 import (
 	"context"
+	"docker-cli/internal/app"
+	"docker-cli/internal/core"
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/firebase/genkit/go/ai"
-	"github.com/firebase/genkit/go/genkit"
-	"github.com/firebase/genkit/go/plugins/googlegenai"
 	"github.com/spf13/cobra"
 )
 
-type DockerUserQuestion struct {
-	UserQuestion string `json:"docker-user-question"`
-}
+var configPath string
+var userRequest string
 
 type DockerResponse struct {
 	UserDockerAnswer string `json:"user-docker-answer"`
+}
+
+func ReadAgentOutput(ctx context.Context, agent *app.Agent) {
+	commChannel := &core.AgentCommunication{
+		ToUser:   make(chan core.AiResponse),
+		FromUser: make(chan core.UserCommand),
+	}
+	defer close(commChannel.FromUser)
+	go func() {
+		if err := agent.AgentLoop.Run(ctx, userRequest, commChannel); err != nil {
+			fmt.Printf("Agent error: %v\n", err)
+		}
+	}()
+
+	for output := range commChannel.ToUser {
+		switch output.Type {
+		case core.Thoughts:
+			fmt.Printf("Agent:%s\n", output.Message)
+		case core.FinalResponse:
+			fmt.Printf("Agent Final Response:%s\n", output.Message)
+		case core.Warning:
+			fmt.Printf("WARNING \n %s", output.Message)
+			fmt.Printf("Do you wish to continue ? (y,n)\n")
+			var conf string
+			fmt.Scan(&conf)
+			commChannel.FromUser <- core.UserCommand{ShouldContinue: conf == "yes" || conf == "y"}
+		}
+	}
 }
 
 var agent_chat = &cobra.Command{
 	Use:     "agent-chat",
 	Aliases: []string{"ac"},
 	Short:   "Agent chat mode, ask it anything related to docker",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if userRequest == "" {
+			fmt.Println("no request was provided, request can't be empty")
+			return
+		}
 		ctx := context.Background()
-		gemeni_key := os.Getenv("GEMINI_KEY")
-		g := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.GoogleAI{APIKey: gemeni_key}), genkit.WithDefaultModel("googleai/gemini-2.5-flash"))
 
-		questionFlow := genkit.DefineFlow(g, "DockerQuestion", func(ctx context.Context, input DockerUserQuestion) (DockerResponse, error) {
-			resp, err := genkit.Generate(ctx, g, ai.WithPrompt("Answer the user docker related question, user question: %s", input.UserQuestion))
-
-			if err != nil {
-				return DockerResponse{UserDockerAnswer: "ai didn't respond"}, err
-			}
-			return DockerResponse{UserDockerAnswer: resp.Text()}, nil
-		})
-
-		res, err := questionFlow.Run(ctx, DockerUserQuestion{UserQuestion: args[0]})
+		config, err := core.ModelConfigFromJsonFile(configPath)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("Ai Response %s\n", res.UserDockerAnswer)
+
+		// needs a way to make the user choose the tools to use before running this command
+		agent, err := app.NewAgent(config, ctx, []string{
+			"docker_command_tool",
+		})
+
+		if err != nil {
+			log.Fatalf("failed to initalize agent, Err:%v", err)
+		}
+		ReadAgentOutput(ctx, agent)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(agent_chat)
+
+	agent_chat.Flags().StringVarP(&configPath, "config", "c", "current directory with file name being config.json", "path to config file")
+	agent_chat.Flags().StringVarP(&userRequest, "request", "m", "", "docker ai request to make")
 }
