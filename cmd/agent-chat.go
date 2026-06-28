@@ -53,22 +53,24 @@ var agent_chat = &cobra.Command{
 			fmt.Println("no request was provided, request can't be empty")
 			return
 		}
-		ctx := context.Background()
+		/*		ctx := context.Background()
 
-		config, err := core.ModelConfigFromJsonFile(configPath)
-		if err != nil {
-			log.Fatal(err)
-		}
+				config, err := core.ModelConfigFromJsonFile(configPath)
+				if err != nil {
+					log.Fatal(err)
+				}
 
-		// needs a way to make the user choose the tools to use before running this command
-		agent, err := app.NewAgent(config, ctx, []string{
-			"docker_command_tool",
-		})
+				// needs a way to make the user choose the tools to use before running this command
+				agent, err := app.NewAgent(config, ctx, []string{
+					"docker_command_tool",
+				})
+		*/
+		mockAgent := app.NewMockAgent()
 
-		if err != nil {
-			log.Fatalf("failed to initalize agent, Err:%v", err)
-		}
-		rootModel := tui.NewRootModel(agent)
+		/*		if err != nil {
+					log.Fatalf("failed to initalize agent, Err:%v", err)
+				}
+		*/rootModel := tui.NewRootModel(mockAgent)
 		p := tea.NewProgram(rootModel)
 		rootModel.SetProgram(p)
 
