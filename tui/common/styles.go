@@ -19,7 +19,10 @@ var (
 
 	FCyan = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FD7AF"))
 
-	BGray = lipgloss.NewStyle().Background(lipgloss.Color("#384d54"))
+	BBlack = lipgloss.NewStyle().Background(lipgloss.Color("#131313"))
+
+	BRed = lipgloss.NewStyle().Background(lipgloss.Color("#ff4545"))
+	FRed = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4545"))
 
 	FGray = lipgloss.NewStyle().Foreground(lipgloss.Color("#384d54"))
 )

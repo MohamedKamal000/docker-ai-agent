@@ -32,13 +32,55 @@ func RenderStatusLineBorder(width int, model string) string {
 	return statusStyle.Width(width).Render(status)
 }
 
-func AdjustTextForBackground(text string, width, height int) string {
-	var stringBuilder strings.Builder
-	textLength := len(text)
-	stringBuilder.WriteString(text)
-	stringBuilder.WriteString(strings.Repeat(" ", width-(textLength%width)))
-	remainingHeight := stringBuilder.Len() % width
-	line := strings.Repeat(" ", width)
-	stringBuilder.WriteString(strings.Repeat("\n"+line, height-remainingHeight))
-	return stringBuilder.String()
+func RenderUserMessageWithBackground(message string, width int) string {
+	style := BBlack.Padding(1).
+		Width(width - 3). // 1 for ┃ + 2 spaces
+		MaxWidth(width - 3)
+
+	body := style.Render(message)
+
+	lines := strings.Split(body, "\n")
+
+	var b strings.Builder
+	for _, line := range lines {
+		b.WriteString(FMobyBlue.Render("┃"))
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func RenderWarningMessage(message string, width int) string {
+	left := FGreenish.Render("Accept (y)")
+	right := FRed.Render("Reject (n)")
+
+	status := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		left,
+		lipgloss.PlaceHorizontal(
+			width-(lipgloss.Width(left)+lipgloss.Width(right)),
+			lipgloss.Right,
+			right,
+		),
+	)
+
+	style := BRed.Padding(1).
+		Width(width - 3). // 1 for ┃ + 2 spaces
+		MaxWidth(width - 3)
+
+	body := style.Render(message)
+
+	body = lipgloss.JoinVertical(lipgloss.Left, body, status)
+
+	lines := strings.Split(body, "\n")
+
+	var b strings.Builder
+	for _, line := range lines {
+		b.WriteString(FMobyBlue.Render("┃"))
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }

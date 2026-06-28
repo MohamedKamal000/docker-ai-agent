@@ -4,18 +4,16 @@ import (
 	"context"
 	"docker-cli/internal/app"
 	"docker-cli/internal/core"
+	"docker-cli/tui"
 	"fmt"
 	"log"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 )
 
 var configPath string
 var userRequest string
-
-type DockerResponse struct {
-	UserDockerAnswer string `json:"user-docker-answer"`
-}
 
 func ReadAgentOutput(ctx context.Context, agent *app.Agent) {
 	commChannel := &core.AgentCommunication{
@@ -70,7 +68,13 @@ var agent_chat = &cobra.Command{
 		if err != nil {
 			log.Fatalf("failed to initalize agent, Err:%v", err)
 		}
-		ReadAgentOutput(ctx, agent)
+		rootModel := tui.NewRootModel(agent)
+		p := tea.NewProgram(rootModel)
+		rootModel.SetProgram(p)
+
+		if _, err := p.Run(); err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 
