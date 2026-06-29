@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
@@ -16,16 +15,17 @@ import (
 )
 
 type ChatSessionModel struct {
-	ta             textarea.Model
-	viewPort       viewport.Model
-	spinner        spinner.Model
-	width          int
-	height         int
-	messages       []string
-	showMenu       bool
-	agentIsRunning bool
-	showWarning    bool
-	optionsMenu    widgets.OptionsModel
+	ta                    textarea.Model
+	viewPort              viewport.Model
+	spinner               spinner.Model
+	width                 int
+	height                int
+	messages              []string
+	showMenu              bool
+	agentIsRunning        bool
+	showWarning           bool
+	optionsMenu           widgets.OptionsModel
+	pendingWarningMessage string
 }
 
 func NewChatSessionModel() *ChatSessionModel {
@@ -41,7 +41,7 @@ func NewChatSessionModel() *ChatSessionModel {
 	ta.Focus()
 
 	ta.SetWidth(30)
-	ta.SetHeight(5)
+	ta.SetHeight(4)
 	ta.Prompt = common.FWhiteBlue.Render("┃ ")
 	ta.CharLimit = 500 // need to be adjusted based on the maximum number of tokens the user set no ?
 	s := ta.Styles()
@@ -64,6 +64,19 @@ func (c *ChatSessionModel) Init() tea.Cmd {
 	return textarea.Blink
 }
 
+func (c *ChatSessionModel) confirmMessage(confirmed bool) {
+	if len(c.messages) > 0 {
+		c.messages = c.messages[:len(c.messages)-1]
+	}
+	if confirmed {
+		c.messages = append(c.messages, common.RenderConfirmedMessage(c.pendingWarningMessage, c.viewPort.Width()))
+	} else {
+		c.messages = append(c.messages, common.RenderWarningBody(c.pendingWarningMessage, c.viewPort.Width()))
+	}
+	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
+	c.viewPort.GotoBottom()
+}
+
 func (c *ChatSessionModel) sendUserMessage(message string) {
 	c.messages = append(c.messages, common.RenderUserMessageWithBackground(message, c.viewPort.Width()))
 	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
@@ -79,18 +92,51 @@ func (c *ChatSessionModel) sendAiMessage(message string, responseType core.Respo
 	case core.Thoughts:
 		message = common.FMobyBlue.Render("Thoughts: ") + message
 	case core.Warning:
+		c.pendingWarningMessage = message
 		message = common.RenderWarningMessage(message, c.viewPort.Width())
 		c.showWarning = true
+	case core.Retrying:
+		// do nothing for now, we might add some ui for it later, but the current spinner does the job
 	}
 	c.messages = append(c.messages, message)
 	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
 	c.viewPort.GotoBottom()
 }
 
+func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
+	var cmds []tea.Cmd
+
+	var cmd tea.Cmd
+
+	c.ta, cmd = c.ta.Update(msg)
+	cmds = append(cmds, cmd)
+
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "up", "down", "left", "right", "pgup", "pgdown":
+			c.viewPort, cmd = c.viewPort.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+	default:
+		c.viewPort, cmd = c.viewPort.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	c.spinner, cmd = c.spinner.Update(msg)
+	cmds = append(cmds, cmd)
+
+	if c.showMenu {
+		c.optionsMenu, cmd = c.optionsMenu.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return tea.Batch(cmds...)
+}
+
 func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ReceiveMessageResponse:
-		c.agentIsRunning = true
 		c.sendAiMessage(msg.Response.Message, msg.Response.Type)
 		return c, c.spinner.Tick
 	case tea.WindowSizeMsg:
@@ -98,27 +144,24 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.height = msg.Height
 		c.ta.SetWidth(msg.Width)
 		reserved := 2 // spinner
-		c.viewPort.SetHeight(msg.Height - (c.ta.Height() + lipgloss.Height(common.OptionsLine) + reserved))
-		c.viewPort.SetWidth(msg.Width / 2)
+		c.viewPort.SetHeight(msg.Height - (c.ta.Height() + lipgloss.Height(common.RenderStatusLineBorder(msg.Width, "")) + reserved))
+		c.viewPort.SetWidth(msg.Width)
 		if len(c.messages) > 0 {
 			// Wrap content before setting it.
 			c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
 		}
 		c.viewPort.GotoBottom()
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		c.spinner, cmd = c.spinner.Update(msg)
-		return c, cmd
 	case tea.KeyPressMsg:
 		if c.showWarning {
 			msgS := msg.String()
 			confirmation := msgS == "y"
 			if msgS == "y" || msgS == "n" {
 				c.showWarning = false
-			}
-			return c, func() tea.Msg {
-				return ConfirmMessage{
-					ShouldContinue: confirmation,
+				c.confirmMessage(confirmation)
+				return c, func() tea.Msg {
+					return ConfirmMessage{
+						ShouldContinue: confirmation,
+					}
 				}
 			}
 		}
@@ -128,10 +171,6 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				c.showMenu = false
 				return c, nil
-			default:
-				var cmd tea.Cmd
-				c.optionsMenu, cmd = c.optionsMenu.Update(msg)
-				return c, cmd
 			}
 		}
 
@@ -140,55 +179,55 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if c.ta.Value() == "" || c.agentIsRunning || c.showWarning {
 				return c, nil
 			}
-			sentMessage := c.ta.Value()
-			c.sendUserMessage(sentMessage)
-			return c, func() tea.Msg {
-				return SendMessageRequest{
-					UserMessage: sentMessage,
-				}
-			}
+
+			sent := c.ta.Value()
+			c.sendUserMessage(sent)
+			c.agentIsRunning = true
+			return c, tea.Batch(
+				c.spinner.Tick,
+				c.updateChildren(msg),
+				func() tea.Msg {
+					return SendMessageRequest{
+						UserMessage: sent,
+					}
+				},
+			)
 		case "ctrl+o":
 			c.showMenu = true
 			return c, nil
 		default:
-			var cmd tea.Cmd
-			c.ta, cmd = c.ta.Update(msg)
-			return c, cmd
+			if c.agentIsRunning || c.showWarning {
+				return c, nil
+			}
 		}
-	case cursor.BlinkMsg:
-		// Textarea should also process cursor blinks.
-		var cmd tea.Cmd
-		c.ta, cmd = c.ta.Update(msg)
-		return c, cmd
 	}
 
-	return c, nil
+	return c, c.updateChildren(msg)
 }
 
 func (c *ChatSessionModel) View() tea.View {
-	cur := c.ta.Cursor()
-	if cur != nil {
-		cur.Y += lipgloss.Height(c.viewPort.View())
+
+	line := common.RenderStatusLineBorder(c.width, "model name")
+	spin := fmt.Sprintf("%s Agent is Running", c.spinner.View())
+	chatBox := lipgloss.Place(
+		c.width,
+		c.height-c.viewPort.Height(),
+		lipgloss.Left,
+		lipgloss.Bottom,
+		lipgloss.JoinVertical(lipgloss.Left, c.ta.View(), line),
+	)
+
+	if c.agentIsRunning {
+		chatBox = lipgloss.Place(
+			c.width,
+			c.height-c.viewPort.Height(),
+			lipgloss.Left,
+			lipgloss.Bottom,
+			lipgloss.JoinVertical(lipgloss.Left, lipgloss.NewStyle().PaddingBottom(1).Render(spin), c.ta.View(), line),
+		)
 	}
 
-	// border := lipgloss.NewStyle().Border(lipgloss.BlockBorder()).Render(c.viewPort.View())
-	var content string
-	if c.agentIsRunning {
-		content = lipgloss.JoinVertical(
-			lipgloss.Left,
-			c.viewPort.View(),
-			fmt.Sprintf("%s Agent is Running", c.spinner.View()),
-			c.ta.View(),
-			common.RenderStatusLineBorder(c.width, "opus 4.7"),
-		)
-	} else {
-		content = lipgloss.JoinVertical(
-			lipgloss.Left,
-			c.viewPort.View(),
-			c.ta.View(),
-			common.RenderStatusLineBorder(c.width, "opus 4.7"),
-		)
-	}
+	content := c.viewPort.View() + "\n" + chatBox
 
 	if c.showMenu {
 		listView := c.optionsMenu.View()
@@ -201,15 +240,15 @@ func (c *ChatSessionModel) View() tea.View {
 		content = lipgloss.NewCompositor(baseLayer, overlayLayer).Render()
 	}
 
-	v := tea.NewView(lipgloss.Place(
-		c.width,
-		c.height,
-		lipgloss.Left,
-		lipgloss.Top,
-		content,
-	))
+	v := tea.NewView(content)
+
+	cur := c.ta.Cursor()
+	if cur != nil {
+		cur.Y += c.height - c.ta.Height() - lipgloss.Height(line)
+	}
 
 	v.AltScreen = true
 	v.Cursor = cur
+	v.MouseMode = tea.MouseModeNone
 	return v
 }

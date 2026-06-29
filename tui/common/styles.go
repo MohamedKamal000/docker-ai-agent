@@ -12,6 +12,9 @@ var Logo string
 var (
 	FWhiteBlue = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B9BCC"))
 	FGreenish  = lipgloss.NewStyle().Foreground(lipgloss.Color("#4EC7C4"))
+	BGreenish  = lipgloss.NewStyle().Background(lipgloss.Color("#4EC7C4"))
+
+	BEmerald = lipgloss.NewStyle().Background(lipgloss.Color("#50C878"))
 
 	FMobyBlue = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D63ED"))
 
@@ -25,8 +28,4 @@ var (
 	FRed = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4545"))
 
 	FGray = lipgloss.NewStyle().Foreground(lipgloss.Color("#384d54"))
-)
-
-var (
-	OptionsLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#0abf53")).Padding(1).Render("esc: ctrl+c" + "\t" + "options: ctrl+o")
 )
