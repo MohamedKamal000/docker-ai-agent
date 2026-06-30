@@ -1,6 +1,10 @@
-# Docker AI Agent
+<div align="center">
+<img src="logo-image.png" alt="docker-ai logo" width="1388"/>
 
-A Go-based AI agent that helps you inspect and operate local Docker environments through a CLI (and planned TUI/web frontends). It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
+</div>
+
+# Docker AI Agent
+A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
 
 ## Status
 
@@ -12,7 +16,8 @@ This project is in active development. Core features are in place, including a D
 
 At a high level:
 
-- CLI (Cobra) parses commands/flags and passes the user goal to the agent runtime.
+- TUI (Bubble Tea) provides a chat interface where users can interact with the agent in real time.
+- CLI (Cobra) parses commands/flags and launches the TUI.
 - The AI agent builds prompts from the current Docker context and user intent.
 - A main loop selects the next action, maps it to a tool call from the **Tool Registry**, and stores results in memory.
 - The **Tool Registry** discovers and manages available tools (`internal/tools`).
@@ -25,6 +30,7 @@ At a high level:
 - Prompt templates for system + user execution context (`internal/core/prompts.go`).
 - Genkit-backed LLM client for multiple providers (`internal/core/genkit_client.go`).
 - **Tool Registry and Executor** for dynamically calling Docker commands (`internal/core/tool_registry.go`, `internal/tools/docker_commands_tool.go`).
+- TUI chat interface for interactive agent conversations (`tui/`).
 - CLI commands for agent chat and planned docker workflows (`cmd/*`).
 
 ## Prerequisites
@@ -66,22 +72,29 @@ export GEMINI_API_KEY=your_key_here
 
 ## How to Use
 
-Run the `agent-chat` command with a request message.
+Run `agent-chat` (or its shortcut `ac`) to launch the interactive TUI session:
+
+```bash
+go run . agent-chat
+# or
+go run . ac
+```
+
+The TUI provides a chat interface where you can type messages, view agent responses, and interact with the agent in real time.
 
 ### Flags
 
 - `-c`, `--config`: Path to the configuration file (default: `config.json`).
-- `-m`, `--request`: The request/question for the AI agent.
 
 ### Example
 
 ```bash
-go run . agent-chat -m "How do I view running containers?"
+go run . agent-chat -c ./my-config.json
 ```
 
 ## CLI commands (current)
 
-- `agent-chat` (`ac`): Ask Docker-related questions via LLM (Gemini example wired).
+- `agent-chat` (`ac`): Launch the interactive TUI chat session to ask Docker-related questions.
 - `containerize` (`c`): Planned – generate a Dockerfile for the current directory.
 - `diagnose` (`d`): Planned – analyze container logs for failures.
 - `optimize` (`o`): Planned – suggest improvements for Dockerfiles.
@@ -94,6 +107,7 @@ internal/core/       Agent loop, prompts, Genkit client, tool registry
 internal/docker/     Docker SDK wrapper + exec helpers
 internal/models/     Shared data models
 internal/tools/      Tool definitions (e.g., Docker commands)
+tui/                 Bubble Tea TUI (chat interface, screens, widgets)
 ```
 
 ## Contributing
