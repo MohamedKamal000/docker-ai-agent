@@ -24,8 +24,10 @@ func NewStaticMemoryStore() *StaticMemoryStore {
 
 func (sms *StaticMemoryStore) Save(userGoal string, toolsExecuted map[string]string, steps []models.AgentResult) error {
 	interaction := models.ChatInteraction{
-		UserRequest:   userGoal,
-		ToolsExecuted: toolsExecuted,
+		UserRequest:        userGoal,
+		LLMThoughts:        []string{},
+		UnstructuredOutput: []string{},
+		ToolsExecuted:      toolsExecuted,
 	}
 
 	for _, step := range steps {

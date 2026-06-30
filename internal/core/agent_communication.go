@@ -8,6 +8,7 @@ const (
 	Thoughts ResponseType = iota
 	FinalResponse
 	Warning
+	Retrying
 )
 
 type AiResponse struct {
@@ -46,6 +47,13 @@ func NewFinal(result models.AgentResult) AiResponse {
 func NewWarning(msg string) AiResponse {
 	return AiResponse{
 		Type:    Warning,
+		Message: msg,
+	}
+}
+
+func NewRetryingMessage(msg string) AiResponse {
+	return AiResponse{
+		Type:    Retrying,
 		Message: msg,
 	}
 }

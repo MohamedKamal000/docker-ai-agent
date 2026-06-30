@@ -108,7 +108,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		aiStep, err := gal.Flow.Run(ctx, userInput)
 		if err != nil {
 			if strings.Contains(err.Error(), "503") {
-				fmt.Println("retrying in 5 second ...")
+				comm.ToUser <- NewRetryingMessage("retrying in 5 second ...")
 				time.Sleep(5 * time.Second)
 				continue
 			} else if strings.Contains(err.Error(), "429") {

@@ -10,15 +10,28 @@ import (
 	"docker-cli/internal/core"
 )
 
-// MockAgent mirrors Agent for frontend development without external dependencies.
+type MockStepType int
 
-func NewMockAgent(config core.ModelConfig, ctx context.Context) *Agent {
-	_ = config
-	_ = ctx
+const (
+	MockThought MockStepType = iota
+	MockWarning
+	MockFinal
+)
 
+type MockStep struct {
+	Type    MockStepType
+	Message string
+}
+
+type MockAgentLoop struct {
+	Steps []MockStep
+	Delay time.Duration
+}
+
+func NewMockAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []string) *Agent {
 	chatSession := core.NewStaticMemoryStore()
 
-	agentLoop := &MockAgentLoop{}
+	agentLoop := &MockAgentLoop{Delay: 1 * time.Second}
 
 	return &Agent{
 		AgentLoop: agentLoop,
@@ -29,10 +42,6 @@ func NewMockAgent(config core.ModelConfig, ctx context.Context) *Agent {
 	}
 }
 
-type MockAgentLoop struct {
-	Steps []string
-}
-
 func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, comm *core.AgentCommunication) error {
 	defer close(comm.ToUser)
 
@@ -41,37 +50,59 @@ func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, comm *core.A
 		steps = defaultMockSteps(userGoal)
 	}
 
+	delay := mal.Delay
+	if delay == 0 {
+		delay = 1 * time.Second
+	}
+
 	for _, step := range steps {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-		comm.ToUser <- core.NewThought(models.AgentResult{
-			IsStructured: false,
-			Raw:          step,
-		})
-		time.Sleep(3 * time.Second) // Simulate processing time
+
+		switch step.Type {
+		case MockThought:
+			comm.ToUser <- core.NewThought(models.AgentResult{
+				IsStructured: false,
+				Raw:          step.Message,
+			})
+		case MockWarning:
+			comm.ToUser <- core.NewWarning(step.Message)
+			cmd := <-comm.FromUser
+			if !cmd.ShouldContinue {
+				comm.ToUser <- core.NewFinal(models.AgentResult{
+					IsStructured: false,
+					Raw:          "Execution cancelled by user.",
+				})
+				return nil
+			}
+		case MockFinal:
+			comm.ToUser <- core.NewFinal(models.AgentResult{
+				IsStructured: false,
+				Raw:          step.Message,
+			})
+		}
+
+		time.Sleep(delay)
 	}
 
-	comm.ToUser <- core.NewFinal(models.AgentResult{
-		IsStructured: false,
-		Raw:          "Agent has completed the goal.",
-	})
 	return nil
 }
 
-func defaultMockSteps(userGoal string) []string {
+func defaultMockSteps(userGoal string) []MockStep {
 	goal := strings.TrimSpace(userGoal)
 	if goal == "" {
 		goal = "(no goal provided)"
 	}
 
-	return []string{
-		fmt.Sprintf("Thought: I will outline a quick plan for: %s", goal),
-		"Action: Identify required containers and images",
-		"Observation: A Dockerfile and compose file are likely needed",
-		"Action: Draft steps for building and running the service",
-		"Final: Here is a short, actionable plan you can follow",
+	return []MockStep{
+		{Type: MockThought, Message: fmt.Sprintf("Thought: I will outline a quick plan for: %s", goal)},
+		{Type: MockWarning, Message: "This action will stop container 'my-container'"},
+		{Type: MockThought, Message: "Action: Identify required containers and images"},
+		{Type: MockThought, Message: "Observation: A Dockerfile and compose file are likely needed"},
+		{Type: MockThought, Message: "Action: Draft steps for building and running the service"},
+		{Type: MockFinal, Message: "Here is a short, actionable plan you can follow"},
 	}
 }
