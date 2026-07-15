@@ -2,10 +2,10 @@ package tui
 
 import (
 	"context"
+
 	"docker-cli/internal/app"
 	"docker-cli/internal/core"
 	"docker-cli/tui/screens"
-	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -50,14 +50,13 @@ func (m *RootModel) sendMessageToAgent(ctx context.Context, userRequest string) 
 	}()
 	go func() {
 		if err := m.agent.AgentLoop.Run(ctx, userRequest, m.comm); err != nil {
-			fmt.Printf("Agent error: %v\n", err)
+			m.program.Send(screens.ErrorMessage{Message: err.Error()})
 		}
 	}()
 
 	for output := range m.comm.ToUser {
 		m.program.Send(screens.ReceiveMessageResponse{Response: output})
 	}
-
 }
 
 func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,6 +93,5 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *RootModel) View() tea.View {
-
 	return m.current.View()
 }

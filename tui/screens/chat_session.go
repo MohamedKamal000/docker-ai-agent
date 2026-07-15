@@ -1,11 +1,12 @@
 package screens
 
 import (
+	"fmt"
+	"strings"
+
 	"docker-cli/internal/core"
 	"docker-cli/tui/common"
 	"docker-cli/tui/widgets"
-	"fmt"
-	"strings"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textarea"
@@ -84,6 +85,12 @@ func (c *ChatSessionModel) sendUserMessage(message string) {
 	c.viewPort.GotoBottom()
 }
 
+func (c *ChatSessionModel) appendNewMessage(styledMessage string) {
+	c.messages = append(c.messages, styledMessage)
+	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
+	c.viewPort.GotoBottom()
+}
+
 func (c *ChatSessionModel) sendAiMessage(message string, responseType core.ResponseType) {
 	switch responseType {
 	case core.FinalResponse:
@@ -97,10 +104,9 @@ func (c *ChatSessionModel) sendAiMessage(message string, responseType core.Respo
 		c.showWarning = true
 	case core.Retrying:
 		// do nothing for now, we might add some ui for it later, but the current spinner does the job
+		return
 	}
-	c.messages = append(c.messages, message)
-	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
-	c.viewPort.GotoBottom()
+	c.appendNewMessage(message)
 }
 
 func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
@@ -136,6 +142,9 @@ func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
 
 func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ErrorMessage:
+		c.appendNewMessage(common.RenderWarningBody(msg.Message, c.viewPort.Width()))
+		c.agentIsRunning = false
 	case ReceiveMessageResponse:
 		c.sendAiMessage(msg.Response.Message, msg.Response.Type)
 		return c, c.spinner.Tick
@@ -206,7 +215,6 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c *ChatSessionModel) View() tea.View {
-
 	line := common.RenderStatusLineBorder(c.width, "model name")
 	spin := fmt.Sprintf("%s Agent is Running", c.spinner.View())
 	chatBox := lipgloss.Place(

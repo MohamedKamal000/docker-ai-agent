@@ -12,6 +12,10 @@ type ReceiveMessageResponse struct {
 	Response core.AiResponse
 }
 
+type ErrorMessage struct {
+	Message string
+}
+
 type ConfirmMessage struct {
 	ShouldContinue bool
 }
