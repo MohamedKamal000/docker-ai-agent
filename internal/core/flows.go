@@ -2,8 +2,8 @@ package core
 
 import (
 	"context"
+
 	"docker-cli/internal/models"
-	"log"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core"
@@ -18,14 +18,12 @@ func NewDockerAgentFlow(client GenkitClient, registry ToolRegistry, systemPrompt
 		refs = append(refs, ai.ToolName(t.Name()))
 	}
 	agentFlow := genkit.DefineFlow[models.UserInputPrompt, *ai.ModelResponse](client.G, "DockerAgent", func(ctx context.Context, input models.UserInputPrompt) (*ai.ModelResponse, error) {
-		// need to initialize the system prompt here as well`
 		parsedPrompt, err := ParsePrompt(User_Prompt_Template, input)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 		resp, err := genkit.Generate(ctx, client.G, ai.WithModelName(client.Config.ModelName),
 			ai.WithTools(refs...), ai.WithSystem(systemPrompt), ai.WithPrompt(parsedPrompt), ai.WithReturnToolRequests(true))
-
 		if err != nil {
 			return nil, err
 		}
