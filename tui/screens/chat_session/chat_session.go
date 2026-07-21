@@ -1,10 +1,8 @@
-package screens
+package chat_session
 
 import (
-	"fmt"
 	"strings"
 
-	"docker-cli/internal/core"
 	"docker-cli/tui/common"
 	"docker-cli/tui/widgets"
 
@@ -15,6 +13,31 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+type state uint
+
+func (s state) Value() uint {
+	return uint(s)
+}
+
+const (
+	NormalState state = iota
+	ShowWarningState
+	AgentRunningState
+)
+
+var (
+	executeStateFunctions = []common.ExecuteStateFunc[*ChatSessionModel]{
+		NormalStateExecute,
+		ShowWarningStateExecute,
+		AgentRunningStateExecute,
+	}
+	renderStatesFunctions = []common.RenderStateFunc[*ChatSessionModel]{
+		NormalStateRender,
+		ShowWarningStateRender,
+		AgentRunningStateRender,
+	}
+)
+
 type ChatSessionModel struct {
 	ta                    textarea.Model
 	viewPort              viewport.Model
@@ -23,14 +46,15 @@ type ChatSessionModel struct {
 	height                int
 	messages              []string
 	showMenu              bool
-	agentIsRunning        bool
-	showWarning           bool
+	stateManager          *common.StateManager[*ChatSessionModel]
 	optionsMenu           widgets.OptionsModel
 	pendingWarningMessage string
 }
 
 func NewChatSessionModel() *ChatSessionModel {
+	stateManager := common.NewStateManager(executeStateFunctions, renderStatesFunctions, NormalState.Value())
 	var cs ChatSessionModel
+	cs.stateManager = stateManager
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -91,24 +115,6 @@ func (c *ChatSessionModel) appendNewMessage(styledMessage string) {
 	c.viewPort.GotoBottom()
 }
 
-func (c *ChatSessionModel) sendAiMessage(message string, responseType core.ResponseType) {
-	switch responseType {
-	case core.FinalResponse:
-		message = common.FMobyBlue.Render("Agent: ") + message
-		c.agentIsRunning = false
-	case core.Thoughts:
-		message = common.FMobyBlue.Render("Thoughts: ") + message
-	case core.Warning:
-		c.pendingWarningMessage = message
-		message = common.RenderWarningMessage(message, c.viewPort.Width())
-		c.showWarning = true
-	case core.Retrying:
-		// do nothing for now, we might add some ui for it later, but the current spinner does the job
-		return
-	}
-	c.appendNewMessage(message)
-}
-
 func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -142,12 +148,6 @@ func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
 
 func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case ErrorMessage:
-		c.appendNewMessage(common.RenderWarningBody(msg.Message, c.viewPort.Width()))
-		c.agentIsRunning = false
-	case ReceiveMessageResponse:
-		c.sendAiMessage(msg.Response.Message, msg.Response.Type)
-		return c, c.spinner.Tick
 	case tea.WindowSizeMsg:
 		c.width = msg.Width
 		c.height = msg.Height
@@ -160,83 +160,14 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
 		}
 		c.viewPort.GotoBottom()
-	case tea.KeyPressMsg:
-		if c.showWarning {
-			msgS := msg.String()
-			confirmation := msgS == "y"
-			if msgS == "y" || msgS == "n" {
-				c.showWarning = false
-				c.confirmMessage(confirmation)
-				return c, func() tea.Msg {
-					return ConfirmMessage{
-						ShouldContinue: confirmation,
-					}
-				}
-			}
-		}
-
-		if c.showMenu {
-			switch msg.String() {
-			case "esc":
-				c.showMenu = false
-				return c, nil
-			}
-		}
-
-		switch msg.String() {
-		case "enter":
-			if c.ta.Value() == "" || c.agentIsRunning || c.showWarning {
-				return c, nil
-			}
-
-			sent := c.ta.Value()
-			c.sendUserMessage(sent)
-			c.agentIsRunning = true
-			return c, tea.Batch(
-				c.spinner.Tick,
-				c.updateChildren(msg),
-				func() tea.Msg {
-					return SendMessageRequest{
-						UserMessage: sent,
-					}
-				},
-			)
-		case "ctrl+o":
-			c.showMenu = true
-			return c, nil
-		default:
-			if c.agentIsRunning || c.showWarning {
-				return c, nil
-			}
-		}
 	}
 
-	return c, c.updateChildren(msg)
+	return c.stateManager.ExecuteCurrent(c, msg)
 }
 
 func (c *ChatSessionModel) View() tea.View {
 	line := common.RenderStatusLineBorder(c.width, "model name")
-	spin := fmt.Sprintf("%s Agent is Running", c.spinner.View())
-	chatBox := lipgloss.Place(
-		c.width,
-		c.height-c.viewPort.Height(),
-		lipgloss.Left,
-		lipgloss.Bottom,
-		lipgloss.JoinVertical(lipgloss.Left, c.ta.View(), line),
-	)
-
-	if c.agentIsRunning {
-		chatBox = lipgloss.Place(
-			c.width,
-			c.height-c.viewPort.Height(),
-			lipgloss.Left,
-			lipgloss.Bottom,
-			lipgloss.JoinVertical(lipgloss.Left, lipgloss.NewStyle().PaddingBottom(1).Render(spin), c.ta.View(), line),
-		)
-	}
-
-	content := c.viewPort.View() + "\n" + chatBox
-
+	content := c.stateManager.RenderCurrent(c).Content
 	if c.showMenu {
 		listView := c.optionsMenu.View()
 		overlayContent := listView.Content

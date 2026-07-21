@@ -3,11 +3,11 @@ package tui
 import (
 	"context"
 
+	tea "charm.land/bubbletea/v2"
 	"docker-cli/internal/app"
 	"docker-cli/internal/core"
 	"docker-cli/tui/screens"
-
-	tea "charm.land/bubbletea/v2"
+	"docker-cli/tui/screens/chat_session"
 )
 
 type RootModel struct {
@@ -70,7 +70,7 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case screens.SwitchToNewSessionMessage:
-		m.current = screens.NewChatSessionModel()
+		m.current = chat_session.NewChatSessionModel()
 		return m, func() tea.Msg {
 			return tea.WindowSizeMsg{
 				Width:  m.width,
