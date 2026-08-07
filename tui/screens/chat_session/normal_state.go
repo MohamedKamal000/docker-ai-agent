@@ -30,8 +30,7 @@ func NormalStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessio
 				},
 			)
 		case "ctrl+o":
-			c.showMenu = true
-			// s.SwitchTo(OptionsMenuState.Value()) // needs to make an overlay models or something for this so we make it appear
+			s.SwitchTo(optionsMenuState.Value()) // needs to make an overlay models or something for this so we make it appear
 			return c, nil
 		}
 	}

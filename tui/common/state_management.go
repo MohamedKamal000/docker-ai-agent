@@ -11,6 +11,7 @@ type StateManager[T tea.Model] struct {
 	executeStates []ExecuteStateFunc[T]
 	renderStates  []RenderStateFunc[T]
 	currentState  uint
+	previousState uint // not sure if we would need a queue for state history later or not
 }
 
 func NewStateManager[T tea.Model](states []ExecuteStateFunc[T], renderStates []RenderStateFunc[T], currentState uint) *StateManager[T] {
@@ -22,6 +23,7 @@ func NewStateManager[T tea.Model](states []ExecuteStateFunc[T], renderStates []R
 }
 
 func (s *StateManager[T]) SwitchTo(nextState uint) {
+	s.previousState = s.currentState
 	s.currentState = nextState
 }
 
@@ -31,4 +33,12 @@ func (s *StateManager[T]) ExecuteCurrent(m T, msg tea.Msg) (tea.Model, tea.Cmd) 
 
 func (s *StateManager[T]) RenderCurrent(m T) tea.View {
 	return s.renderStates[s.currentState](s, m)
+}
+
+func (s *StateManager[T]) RenderPrevious(m T) tea.View {
+	return s.renderStates[s.previousState](s, m)
+}
+
+func (s *StateManager[T]) SwitchToPreviousState() {
+	s.SwitchTo(s.previousState)
 }

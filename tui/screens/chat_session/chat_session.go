@@ -23,6 +23,7 @@ const (
 	NormalState state = iota
 	ShowWarningState
 	AgentRunningState
+	optionsMenuState
 )
 
 var (
@@ -30,11 +31,13 @@ var (
 		NormalStateExecute,
 		ShowWarningStateExecute,
 		AgentRunningStateExecute,
+		OptionsMenuStateExecute,
 	}
 	renderStatesFunctions = []common.RenderStateFunc[*ChatSessionModel]{
 		NormalStateRender,
 		ShowWarningStateRender,
 		AgentRunningStateRender,
+		OptionsMenuStateRender,
 	}
 )
 
@@ -45,9 +48,8 @@ type ChatSessionModel struct {
 	width                 int
 	height                int
 	messages              []string
-	showMenu              bool
 	stateManager          *common.StateManager[*ChatSessionModel]
-	optionsMenu           widgets.OptionsModel
+	OptionsMenu           widgets.OptionsModel
 	pendingWarningMessage string
 }
 
@@ -59,7 +61,7 @@ func NewChatSessionModel() *ChatSessionModel {
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	cs.spinner = sp
-	cs.optionsMenu = widgets.NewOptionsModel()
+	cs.OptionsMenu = widgets.NewOptionsModel()
 	ta := textarea.New()
 	ta.Placeholder = "send a message...."
 	ta.SetVirtualCursor(false)
@@ -138,11 +140,6 @@ func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
 	c.spinner, cmd = c.spinner.Update(msg)
 	cmds = append(cmds, cmd)
 
-	if c.showMenu {
-		c.optionsMenu, cmd = c.optionsMenu.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-
 	return tea.Batch(cmds...)
 }
 
@@ -168,17 +165,6 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (c *ChatSessionModel) View() tea.View {
 	line := common.RenderStatusLineBorder(c.width, "model name")
 	content := c.stateManager.RenderCurrent(c).Content
-	if c.showMenu {
-		listView := c.optionsMenu.View()
-		overlayContent := listView.Content
-		overlayLayer := lipgloss.NewLayer(overlayContent).
-			X((c.width - lipgloss.Width(overlayContent)) / 2).
-			Y((c.height - lipgloss.Height(overlayContent)) / 2).
-			Z(1)
-		baseLayer := lipgloss.NewLayer(content)
-		content = lipgloss.NewCompositor(baseLayer, overlayLayer).Render()
-	}
-
 	v := tea.NewView(content)
 
 	cur := c.ta.Cursor()
