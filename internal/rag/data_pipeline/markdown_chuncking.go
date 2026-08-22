@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	models "docker-cli/internal/rag/models"
+
 	"github.com/tmc/langchaingo/textsplitter"
 )
 
@@ -25,56 +27,22 @@ func cleanFile(content string) string {
 	return result
 }
 
-type MetaData struct {
-	Title       string
-	Description string
-	Keywords    []string
-}
-
-type ParsedFile struct {
-	FileMetaData MetaData
-	Content      string
-	FilePath     string
-}
-
-type Chunck struct {
-	ChunckMetaData MetaData
-	ChunckContent  string
-	FilePath       string
-	Index          uint64
-}
-
-func NewChunck(chunckContent string, parsedFile *ParsedFile, index uint64) Chunck {
-	return Chunck{
-		ChunckContent:  chunckContent,
-		Index:          index,
-		FilePath:       parsedFile.FilePath,
-		ChunckMetaData: parsedFile.FileMetaData,
-	}
-}
-
-func (c *Chunck) ToString() string {
-	return fmt.Sprintf(
-		`Title: %s
-Description: %s
-%s`,
-		c.ChunckMetaData.Title,
-		c.ChunckMetaData.Description,
-		c.ChunckContent,
-	)
-}
-
-func ParseFile(file string, content string) (error, *ParsedFile) {
+func ParseDocument(file string, content string) (error, *models.SourceDocument) {
 	if !strings.HasPrefix(content, "---\n") {
 		return fmt.Errorf("Failed to parse file header,file %s might not have a header", file), nil
 	}
 
 	splits := strings.SplitN(content, "---\n", 3)
+
+	if len(splits) != 3 {
+		return fmt.Errorf("file has no content %s", file), nil
+	}
+
 	metadataNonParsed := splits[1]
 	fileContent := splits[2]
-	var metadata MetaData
-	lines := strings.Split(metadataNonParsed, "\n")
-	for _, line := range lines {
+	var metadata models.MetaData
+	lines := strings.SplitSeq(metadataNonParsed, "\n")
+	for line := range lines {
 		kv := strings.SplitN(line, ":", 2)
 		if len(kv) != 2 {
 			continue
@@ -92,32 +60,37 @@ func ParseFile(file string, content string) (error, *ParsedFile) {
 		}
 	}
 
-	return nil, &ParsedFile{
-		FileMetaData: metadata,
-		Content:      fileContent,
-		FilePath:     file,
+	return nil, &models.SourceDocument{
+		MetaData: metadata,
+		Content:  fileContent,
+		Path:     file,
 	}
 }
 
-type ChunckGenerator struct {
-	chunckSize  uint
-	overlapSize uint
-	folderPath  string
+type ChunkGenerator struct {
+	chunkSize              uint
+	overlapSize            uint
+	documentsDirectoryPath string
 }
 
-func NewChunckGenerator(chunckSize uint, overlapSize uint, folderPath string) ChunckGenerator {
-	return ChunckGenerator{
-		chunckSize:  chunckSize,
-		overlapSize: overlapSize,
-		folderPath:  folderPath,
+func NewChunkGenerator(chunkSize uint, overlapSize uint, folderPath string) ChunkGenerator {
+	return ChunkGenerator{
+		chunkSize:              chunkSize,
+		overlapSize:            overlapSize,
+		documentsDirectoryPath: folderPath,
 	}
 }
 
-func (cg *ChunckGenerator) ProduceChuncks(ch chan<- Chunck) {
-	markDownSplitter := textsplitter.NewMarkdownTextSplitter(textsplitter.WithChunkSize(int(cg.chunckSize)),
+func (cg *ChunkGenerator) ProduceChunks(ch chan<- models.Chunk) {
+	defer close(ch)
+	markDownSplitter := textsplitter.NewMarkdownTextSplitter(
+		textsplitter.WithHeadingHierarchy(true),
+		textsplitter.WithKeepSeparator(true),
+		textsplitter.WithCodeBlocks(true),
+		textsplitter.WithChunkSize(int(cg.chunkSize)),
 		textsplitter.WithChunkOverlap(int(cg.overlapSize)))
 
-	err := filepath.WalkDir(cg.folderPath, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(cg.documentsDirectoryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -135,16 +108,17 @@ func (cg *ChunckGenerator) ProduceChuncks(ch chan<- Chunck) {
 		}
 
 		cleanedContent := cleanFile(string(content))
-		err, fileContent := ParseFile(path, cleanedContent)
+		err, sourceDocument := ParseDocument(path, cleanedContent)
 		if err != nil {
-			return err
+			return nil // skip files with no header
 		}
-		result, err := markDownSplitter.SplitText(fileContent.Content)
+		result, err := markDownSplitter.SplitText(sourceDocument.Content)
 		if err != nil {
 			return err
 		}
 		for index, text := range result {
-			ch <- NewChunck(text, fileContent, uint64(index))
+			chunk := sourceDocument.TransformToChunk(text, uint64(index))
+			ch <- chunk
 		}
 		return nil
 	})
