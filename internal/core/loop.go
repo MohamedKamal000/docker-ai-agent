@@ -2,14 +2,16 @@ package core
 
 import (
 	"context"
-	"docker-cli/internal/models"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
+	"docker-cli/internal/models"
+
 	"github.com/firebase/genkit/go/ai"
+	"github.com/firebase/genkit/go/genkit"
 )
 
 type AgentLoop interface {
@@ -24,15 +26,18 @@ type GenkitAgentLoop struct {
 	Client         GenkitClient
 	Flow           AgentFlow
 	SessionContext *LoopContext
+	Classifier     IntentClassifier
 }
 
-func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string) *GenkitAgentLoop {
+func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string, classifier IntentClassifier) *GenkitAgentLoop {
 	flow := NewDockerAgentFlow(client, sessionContext.Tools, systemPrompt)
-	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow}
+	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow, Classifier: classifier}
 }
 
-var jsonBlockRe = regexp.MustCompile("(?s)```json\\s*(\\{.*?})\\s*```")
-var jsonLooseRe = regexp.MustCompile("(?s)(\\{.*})")
+var (
+	jsonBlockRe = regexp.MustCompile("(?s)```json\\s*(\\{.*?})\\s*```")
+	jsonLooseRe = regexp.MustCompile("(?s)(\\{.*})")
+)
 
 func extractJSON(raw string) string {
 	raw = strings.TrimSpace(raw)
@@ -79,6 +84,30 @@ func extractResult(resp *ai.ModelResponse) models.AgentResult {
 
 func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *AgentCommunication) error {
 	defer close(comm.ToUser)
+
+	classification, err := gal.Classifier.Classify(ctx, userGoal)
+	if err != nil {
+		return err
+	}
+
+	switch classification.Intent {
+	case IntentAmbiguous:
+		comm.ToUser <- NewFinal(models.AgentResult{
+			Structured: &models.AgentExecutionStep{
+				FinalResponse: "Your request is unclear. Are you asking for information (e.g., 'how do I...') or wanting me to perform an action on your Docker environment (e.g., 'run nginx')? Please clarify.",
+				Done:          true,
+			},
+			IsStructured: true,
+		})
+		return nil
+
+	case IntentGeneralQuestion:
+		return gal.answerGeneralQuestion(ctx, classification.RewrittenPrompt, comm)
+
+	case IntentActionRequest:
+		userGoal = classification.RewrittenPrompt
+	}
+
 	toolExec := NewToolExecutor(gal.SessionContext.Tools)
 	previousChat, err := gal.SessionContext.Memory.Load()
 	if err != nil {
@@ -129,12 +158,32 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			return err
 		}
 
-		comm.ToUser <- NewThought(agentOutput)
+		if agentOutput.IsStructured && agentOutput.Structured.Thought != "" {
+			comm.ToUser <- NewThought(agentOutput)
+		}
 		userInput.CurrentGoalProgress = append(userInput.CurrentGoalProgress, agentOutput)
 		for k, v := range toolsResult {
 			userInput.ToolsExecuted[k] = v
 		}
 	}
 
+	return nil
+}
+
+func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt string, comm *AgentCommunication) error {
+	resp, err := genkit.Generate(ctx, gal.Client.G,
+		ai.WithModelName(gal.Client.Config.ModelName),
+		ai.WithSystem("You are a Docker expert. Answer the user's question clearly and concisely. No tools."),
+		ai.WithPrompt(prompt))
+	if err != nil {
+		return err
+	}
+	comm.ToUser <- NewFinal(models.AgentResult{
+		Structured: &models.AgentExecutionStep{
+			FinalResponse: resp.Text(),
+			Done:          true,
+		},
+		IsStructured: true,
+	})
 	return nil
 }
