@@ -86,4 +86,3 @@ func (c *GenkitIntentClassifier) Classify(ctx context.Context, userInput string)
 		RewrittenPrompt: classification.RewrittenPrompt,
 	}, nil
 }
-
