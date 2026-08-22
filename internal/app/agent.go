@@ -59,7 +59,8 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 		return nil, err
 	}
 
-	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt)
+	classifier := core.NewIntentClassifier(*genkitClient)
+	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt, classifier)
 
 	return &Agent{
 		AgentLoop:      agentLoop,
