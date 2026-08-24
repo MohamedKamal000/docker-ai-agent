@@ -4,15 +4,16 @@
 </div>
 
 # Docker AI Agent
-A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
+
+A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI, without the need to install Docker Desktop. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
 
 ## Status
 
-This project is in active development. Core features are in place, including a Docker SDK wrapper, prompt templates, a Genkit client for LLM integration, a tool registry, and a tool execution loop. The CLI is functional for agent-based chat. Next steps involve adding more tools, implementing a user confirmation flow, and building out planned commands like `containerize` and `diagnose`.
+This project is in active development. Core features are in place, including a Docker SDK wrapper, prompt templates, a Genkit client for LLM integration, a tool registry, and a tool execution loop. The CLI is functional for agent-based chat. Next steps involve adding more tools, implementing a user confirmation flow, and building out planned commands like `initialize-rag` and `enable-rag`.
 
 ## Architecture
 
-![Architecture](./project-arch.png)
+![Architecture](./docs/src/images/project-arch.png)
 
 At a high level:
 
@@ -95,9 +96,12 @@ go run . agent-chat -c ./my-config.json
 ## CLI commands (current)
 
 - `agent-chat` (`ac`): Launch the interactive TUI chat session to ask Docker-related questions.
-- `containerize` (`c`): Planned – generate a Dockerfile for the current directory.
-- `diagnose` (`d`): Planned – analyze container logs for failures.
-- `optimize` (`o`): Planned – suggest improvements for Dockerfiles.
+- `initialize-rag`: Planned – set up retrieval augmented generation so the agent can ground answers in indexed documentation.
+- `enable-rag`: Planned – activate RAG mode for the agent session.
+
+## Documentation
+
+Full documentation is built with [mdBook](https://rust-lang.github.io/mdBook/) and lives in the [`docs/`](./docs) directory, covering getting started guides (including how to obtain and store API keys), usage, architecture, and a configuration reference.
 
 ## Project layout
 
