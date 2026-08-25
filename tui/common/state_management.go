@@ -1,24 +1,33 @@
 package common
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+)
 
 type (
 	ExecuteStateFunc[T tea.Model] func(s *StateManager[T], m T, msg tea.Msg) (T, tea.Cmd)
 	RenderStateFunc[T tea.Model]  func(s *StateManager[T], m T) tea.View
 )
 
+// StateDefinition groups the execute and render functions of a single state.
+// Registering both together guarantees they can never drift out of sync.
+type StateDefinition[T tea.Model] struct {
+	Execute ExecuteStateFunc[T]
+	Render  RenderStateFunc[T]
+}
+
 type StateManager[T tea.Model] struct {
-	executeStates []ExecuteStateFunc[T]
-	renderStates  []RenderStateFunc[T]
+	states        map[uint]StateDefinition[T]
 	currentState  uint
 	previousState uint // not sure if we would need a queue for state history later or not
 }
 
-func NewStateManager[T tea.Model](states []ExecuteStateFunc[T], renderStates []RenderStateFunc[T], currentState uint) *StateManager[T] {
+func NewStateManager[T tea.Model](states map[uint]StateDefinition[T], currentState uint) *StateManager[T] {
 	return &StateManager[T]{
-		executeStates: states,
-		renderStates:  renderStates,
-		currentState:  currentState,
+		states:       states,
+		currentState: currentState,
 	}
 }
 
@@ -27,16 +36,24 @@ func (s *StateManager[T]) SwitchTo(nextState uint) {
 	s.currentState = nextState
 }
 
+func (s *StateManager[T]) definition(state uint) StateDefinition[T] {
+	def, ok := s.states[state]
+	if !ok {
+		panic(fmt.Sprintf("state manager: no definition registered for state %d", state))
+	}
+	return def
+}
+
 func (s *StateManager[T]) ExecuteCurrent(m T, msg tea.Msg) (tea.Model, tea.Cmd) {
-	return s.executeStates[s.currentState](s, m, msg)
+	return s.definition(s.currentState).Execute(s, m, msg)
 }
 
 func (s *StateManager[T]) RenderCurrent(m T) tea.View {
-	return s.renderStates[s.currentState](s, m)
+	return s.definition(s.currentState).Render(s, m)
 }
 
 func (s *StateManager[T]) RenderPrevious(m T) tea.View {
-	return s.renderStates[s.previousState](s, m)
+	return s.definition(s.previousState).Render(s, m)
 }
 
 func (s *StateManager[T]) SwitchToPreviousState() {

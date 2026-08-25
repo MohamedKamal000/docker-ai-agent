@@ -70,7 +70,12 @@ func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, comm *core.A
 			})
 		case MockWarning:
 			comm.ToUser <- core.NewWarning(step.Message)
-			cmd := <-comm.FromUser
+			var cmd core.UserCommand
+			select {
+			case cmd = <-comm.FromUser:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 			if !cmd.ShouldContinue {
 				comm.ToUser <- core.NewFinal(models.AgentResult{
 					IsStructured: false,
@@ -85,7 +90,9 @@ func (mal *MockAgentLoop) Run(ctx context.Context, userGoal string, comm *core.A
 			})
 		}
 
-		time.Sleep(delay)
+		if err := core.SleepCancellable(ctx, delay); err != nil {
+			return err
+		}
 	}
 
 	return nil

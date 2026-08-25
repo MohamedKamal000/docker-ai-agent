@@ -9,7 +9,7 @@ import (
 
 func OptionsMenuStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
 	msg_str, ok := msg.(tea.KeyPressMsg)
-	if ok && msg_str.String() == "q" || msg_str.String() == "esc" {
+	if ok && (msg_str.String() == "q" || msg_str.String() == "esc") {
 		s.SwitchToPreviousState()
 		return c, nil
 	}

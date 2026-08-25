@@ -5,11 +5,20 @@ import (
 	"docker-cli/tui/screens"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 )
 
 func ShowWarningStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case screens.RunEvent:
+		// Defensive: a terminal event must never strand the warning prompt
+		// (e.g. the run died before consuming the confirmation).
+		switch msg.Kind {
+		case screens.RunFailed, screens.RunCanceled:
+			c.appendNewMessage(common.RenderWarningBody(msg.Text, c.viewPort.Width()))
+			c.stateManager.SwitchTo(NormalState.Value())
+		case screens.RunFinished:
+			c.stateManager.SwitchTo(NormalState.Value())
+		}
 	case tea.KeyPressMsg:
 		confirmation := msg.String() == "y"
 		if msg.String() == "y" || msg.String() == "n" {
@@ -26,15 +35,5 @@ func ShowWarningStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatS
 }
 
 func ShowWarningStateRender(s *common.StateManager[*ChatSessionModel], m *ChatSessionModel) tea.View {
-	line := common.RenderStatusLineBorder(m.width, "model name")
-	chatBox := lipgloss.Place(
-		m.width,
-		m.height-m.viewPort.Height(),
-		lipgloss.Left,
-		lipgloss.Bottom,
-		lipgloss.JoinVertical(lipgloss.Left, m.ta.View(), line),
-	)
-
-	content := m.viewPort.View() + "\n" + chatBox
-	return tea.NewView(content)
+	return renderChatScreen(m)
 }

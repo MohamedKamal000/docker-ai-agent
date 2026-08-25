@@ -1,23 +1,18 @@
 package tui
 
 import (
-	"context"
-
 	tea "charm.land/bubbletea/v2"
 	"docker-cli/internal/app"
-	"docker-cli/internal/core"
 	"docker-cli/tui/screens"
 	"docker-cli/tui/screens/chat_session"
 )
 
 type RootModel struct {
-	current    tea.Model
-	agent      *app.Agent
-	program    *tea.Program // a reference to the program to send messages from the agent to the main loop
-	comm       *core.AgentCommunication
-	cancelFunc context.CancelFunc
-	width      int
-	height     int
+	current tea.Model
+	agent   *app.Agent
+	runner  *AgentRunner
+	width   int
+	height  int
 }
 
 func NewRootModel(agent *app.Agent) *RootModel {
@@ -27,8 +22,10 @@ func NewRootModel(agent *app.Agent) *RootModel {
 	}
 }
 
+// SetProgram wires the program handle; the agent runner needs it to push
+// events into the main loop from its goroutines.
 func (m *RootModel) SetProgram(program *tea.Program) {
-	m.program = program
+	m.runner = NewAgentRunner(m.agent, program)
 }
 
 func (m *RootModel) Init() tea.Cmd {
@@ -36,27 +33,6 @@ func (m *RootModel) Init() tea.Cmd {
 		tea.RequestWindowSize,
 		m.current.Init(),
 	)
-}
-
-func (m *RootModel) sendMessageToAgent(ctx context.Context, userRequest string) {
-	m.comm = &core.AgentCommunication{
-		ToUser:   make(chan core.AiResponse),
-		FromUser: make(chan core.UserCommand),
-	}
-	defer func() {
-		close(m.comm.FromUser)
-		m.comm = nil
-		m.cancelFunc = nil
-	}()
-	go func() {
-		if err := m.agent.AgentLoop.Run(ctx, userRequest, m.comm); err != nil {
-			m.program.Send(screens.ErrorMessage{Message: err.Error()})
-		}
-	}()
-
-	for output := range m.comm.ToUser {
-		m.program.Send(screens.ReceiveMessageResponse{Response: output})
-	}
 }
 
 func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -78,13 +54,11 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case screens.SendMessageRequest:
-		var ctx context.Context
-		ctx, m.cancelFunc = context.WithCancel(context.Background()) // make a switch message late for cancelation
-		go m.sendMessageToAgent(ctx, msg.UserMessage)
+		m.runner.Start(msg.UserMessage)
 	case screens.ConfirmMessage:
-		if m.comm != nil {
-			m.comm.FromUser <- core.UserCommand{ShouldContinue: msg.ShouldContinue}
-		}
+		m.runner.Confirm(msg.ShouldContinue)
+	case screens.CancelAgentRequest:
+		m.runner.Cancel()
 	}
 
 	updatedModel, cmd := m.current.Update(msg)

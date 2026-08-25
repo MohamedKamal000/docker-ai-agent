@@ -32,13 +32,9 @@ func RenderStatusLineBorder(width int, model string) string {
 	return statusStyle.Width(width).Render(status)
 }
 
-func RenderUserMessageWithBackground(message string, width int) string {
-	style := BBlack.Padding(1).
-		Width(width - 3). // 1 for ┃ + 2 spaces
-		MaxWidth(width - 3)
-
-	body := style.Render(message)
-
+// renderGutterLines prefixes each line of an already-rendered body with a ┃
+// gutter.
+func renderGutterLines(body string) string {
 	lines := strings.Split(body, "\n")
 
 	var b strings.Builder
@@ -49,6 +45,28 @@ func RenderUserMessageWithBackground(message string, width int) string {
 	}
 
 	return b.String()
+}
+
+// renderGutterBlock renders a message in a padded background block with a
+// ┃ gutter prefix on each line.
+func renderGutterBlock(message string, width int, bg lipgloss.Style) string {
+	style := bg.Padding(1).
+		Width(width - 3). // 1 for ┃ + 2 spaces
+		MaxWidth(width - 3)
+
+	return renderGutterLines(style.Render(message))
+}
+
+func RenderUserMessageWithBackground(message string, width int) string {
+	return renderGutterBlock(message, width, BBlack)
+}
+
+func RenderWarningBody(message string, width int) string {
+	return renderGutterBlock(message, width, BRed)
+}
+
+func RenderConfirmedMessage(message string, width int) string {
+	return renderGutterBlock(message, width, BEmerald)
 }
 
 func RenderWarningMessage(message string, width int) string {
@@ -65,60 +83,10 @@ func RenderWarningMessage(message string, width int) string {
 		),
 	)
 
-	style := BRed.Padding(1).
+	message = lipgloss.JoinVertical(lipgloss.Left, BRed.Padding(1).
 		Width(width - 3). // 1 for ┃ + 2 spaces
-		MaxWidth(width - 3)
+		MaxWidth(width - 3).
+		Render(message), status)
 
-	body := style.Render(message)
-
-	body = lipgloss.JoinVertical(lipgloss.Left, body, status)
-
-	lines := strings.Split(body, "\n")
-
-	var b strings.Builder
-	for _, line := range lines {
-		b.WriteString(FMobyBlue.Render("┃"))
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-func RenderWarningBody(message string, width int) string {
-	style := BRed.Padding(1).
-		Width(width - 3).
-		MaxWidth(width - 3)
-
-	body := style.Render(message)
-
-	lines := strings.Split(body, "\n")
-
-	var b strings.Builder
-	for _, line := range lines {
-		b.WriteString(FMobyBlue.Render("┃"))
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-func RenderConfirmedMessage(message string, width int) string {
-	style := BEmerald.Padding(1).
-		Width(width - 3). // 1 for ┃ + 2 spaces
-		MaxWidth(width - 3)
-
-	body := style.Render(message)
-
-	lines := strings.Split(body, "\n")
-
-	var b strings.Builder
-	for _, line := range lines {
-		b.WriteString(FMobyBlue.Render("┃"))
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-
-	return b.String()
+	return renderGutterLines(message)
 }

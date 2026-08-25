@@ -26,20 +26,12 @@ const (
 	optionsMenuState
 )
 
-var (
-	executeStateFunctions = []common.ExecuteStateFunc[*ChatSessionModel]{
-		NormalStateExecute,
-		ShowWarningStateExecute,
-		AgentRunningStateExecute,
-		OptionsMenuStateExecute,
-	}
-	renderStatesFunctions = []common.RenderStateFunc[*ChatSessionModel]{
-		NormalStateRender,
-		ShowWarningStateRender,
-		AgentRunningStateRender,
-		OptionsMenuStateRender,
-	}
-)
+var chatSessionStates = map[uint]common.StateDefinition[*ChatSessionModel]{
+	NormalState.Value():       {Execute: NormalStateExecute, Render: NormalStateRender},
+	ShowWarningState.Value():  {Execute: ShowWarningStateExecute, Render: ShowWarningStateRender},
+	AgentRunningState.Value(): {Execute: AgentRunningStateExecute, Render: AgentRunningStateRender},
+	optionsMenuState.Value():  {Execute: OptionsMenuStateExecute, Render: OptionsMenuStateRender},
+}
 
 type ChatSessionModel struct {
 	ta                    textarea.Model
@@ -54,7 +46,7 @@ type ChatSessionModel struct {
 }
 
 func NewChatSessionModel() *ChatSessionModel {
-	stateManager := common.NewStateManager(executeStateFunctions, renderStatesFunctions, NormalState.Value())
+	stateManager := common.NewStateManager(chatSessionStates, NormalState.Value())
 	var cs ChatSessionModel
 	cs.stateManager = stateManager
 	sp := spinner.New()

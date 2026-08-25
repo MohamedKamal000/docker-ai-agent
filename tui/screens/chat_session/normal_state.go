@@ -5,7 +5,6 @@ import (
 	"docker-cli/tui/screens"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 )
 
 func NormalStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
@@ -38,15 +37,5 @@ func NormalStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessio
 }
 
 func NormalStateRender(s *common.StateManager[*ChatSessionModel], m *ChatSessionModel) tea.View {
-	line := common.RenderStatusLineBorder(m.width, "model name")
-	chatBox := lipgloss.Place(
-		m.width,
-		m.height-m.viewPort.Height(),
-		lipgloss.Left,
-		lipgloss.Bottom,
-		lipgloss.JoinVertical(lipgloss.Left, m.ta.View(), line),
-	)
-
-	content := m.viewPort.View() + "\n" + chatBox
-	return tea.NewView(content)
+	return renderChatScreen(m)
 }

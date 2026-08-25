@@ -25,7 +25,12 @@ func (te *ToolExecutor) ExecuteGenkitTool(ctx context.Context, modelResponse *ai
 		warn, ok := tool.ShouldRaiseWarning(req.Input)
 		if ok {
 			comm.ToUser <- NewWarning(warn)
-			cmd := <-comm.FromUser
+			var cmd UserCommand
+			select {
+			case cmd = <-comm.FromUser:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 
 			if !cmd.ShouldContinue {
 				return nil, fmt.Errorf("execution is canceled")
