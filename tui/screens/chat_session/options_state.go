@@ -2,14 +2,15 @@ package chat_session
 
 import (
 	"docker-cli/tui/common"
+	"docker-cli/tui/widgets"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
 func OptionsMenuStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
-	msg_str, ok := msg.(tea.KeyPressMsg)
-	if ok && (msg_str.String() == "q" || msg_str.String() == "esc") {
+	switch msg.(type) {
+	case widgets.OptionsCloseMsg:
 		s.SwitchToPreviousState()
 		return c, nil
 	}
