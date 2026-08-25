@@ -132,13 +132,17 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		}
 		step++
 		if step != 0 {
-			time.Sleep(3 * time.Second) // waits 3 sec on purpose if not first call
+			if err := SleepCancellable(ctx, 3*time.Second); err != nil { // waits 3 sec on purpose if not first call
+				return err
+			}
 		}
 		aiStep, err := gal.Flow.Run(ctx, userInput)
 		if err != nil {
 			if strings.Contains(err.Error(), "503") {
 				comm.ToUser <- NewRetryingMessage("retrying in 5 second ...")
-				time.Sleep(5 * time.Second)
+				if err := SleepCancellable(ctx, 5*time.Second); err != nil {
+					return err
+				}
 				continue
 			} else if strings.Contains(err.Error(), "429") {
 				return fmt.Errorf("you have exceeded the limit")

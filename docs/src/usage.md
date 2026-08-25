@@ -15,9 +15,13 @@ Typical things to ask:
 ### Session flow
 
 1. You type a message and send it.
-2. The interface spawns the agent loop in a background goroutine so the UI stays responsive.
+2. The agent runner starts the agent loop in a background goroutine so the UI stays responsive. Only one run can be active at a time.
 3. While the agent works, the chat shows its current thought so you can follow the reasoning live.
 4. When it finishes, the final response is rendered into the conversation.
+
+### Canceling a run
+
+While the agent is working you can press `esc` to cancel the request. The run aborts cleanly, a *"Request canceled."* message appears in the conversation, and you get the input back immediately.
 
 ### Session states
 

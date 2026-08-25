@@ -1,6 +1,22 @@
 package core
 
-import "docker-cli/internal/models"
+import (
+	"context"
+	"time"
+
+	"docker-cli/internal/models"
+)
+
+// SleepCancellable waits for d, returning early with the context error if ctx
+// is canceled first.
+func SleepCancellable(ctx context.Context, d time.Duration) error {
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 type ResponseType int
 
