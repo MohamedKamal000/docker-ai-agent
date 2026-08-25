@@ -67,7 +67,6 @@ func NewChatSessionModel() *ChatSessionModel {
 	s.Focused.CursorLine = lipgloss.NewStyle()
 
 	vp := viewport.New(viewport.WithWidth(50), viewport.WithHeight(5))
-	vp.SetContent(common.FMobyBlue.Render("Agent: ") + `Welcome To Docker AI, how can I assist you today ?`)
 	vp.KeyMap.Left.SetEnabled(false)
 	vp.KeyMap.Right.SetEnabled(false)
 
@@ -76,7 +75,25 @@ func NewChatSessionModel() *ChatSessionModel {
 	ta.KeyMap.InsertNewline.SetEnabled(false)
 	cs.ta = ta
 	cs.viewPort = vp
+	cs.refreshContent()
 	return &cs
+}
+
+func (c *ChatSessionModel) renderLogoHeader() string {
+	logo := common.FWhiteBlue.Render(common.Logo)
+	if lipgloss.Width(logo) < c.viewPort.Width() {
+		logo = lipgloss.PlaceHorizontal(c.viewPort.Width(), lipgloss.Center, lipgloss.PlaceVertical(c.viewPort.Height(), lipgloss.Center, logo))
+	}
+	return logo + "\n"
+}
+
+func (c *ChatSessionModel) refreshContent() {
+	if len(c.messages) == 0 {
+		c.viewPort.SetContent(c.renderLogoHeader())
+		return
+	}
+	wrapped := lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n"))
+	c.viewPort.SetContent(wrapped)
 }
 
 func (c *ChatSessionModel) Init() tea.Cmd {
@@ -92,20 +109,20 @@ func (c *ChatSessionModel) confirmMessage(confirmed bool) {
 	} else {
 		c.messages = append(c.messages, common.RenderWarningBody(c.pendingWarningMessage, c.viewPort.Width()))
 	}
-	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
+	c.refreshContent()
 	c.viewPort.GotoBottom()
 }
 
 func (c *ChatSessionModel) sendUserMessage(message string) {
 	c.messages = append(c.messages, common.RenderUserMessageWithBackground(message, c.viewPort.Width()))
-	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
+	c.refreshContent()
 	c.ta.Reset()
 	c.viewPort.GotoBottom()
 }
 
 func (c *ChatSessionModel) appendNewMessage(styledMessage string) {
 	c.messages = append(c.messages, styledMessage)
-	c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
+	c.refreshContent()
 	c.viewPort.GotoBottom()
 }
 
@@ -144,10 +161,7 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		reserved := 2 // spinner
 		c.viewPort.SetHeight(msg.Height - (c.ta.Height() + lipgloss.Height(common.RenderStatusLineBorder(msg.Width, "")) + reserved))
 		c.viewPort.SetWidth(msg.Width)
-		if len(c.messages) > 0 {
-			// Wrap content before setting it.
-			c.viewPort.SetContent(lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n")))
-		}
+		c.refreshContent()
 		c.viewPort.GotoBottom()
 	}
 

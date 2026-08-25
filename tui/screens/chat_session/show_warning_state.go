@@ -10,8 +10,6 @@ import (
 func ShowWarningStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case screens.RunEvent:
-		// Defensive: a terminal event must never strand the warning prompt
-		// (e.g. the run died before consuming the confirmation).
 		switch msg.Kind {
 		case screens.RunFailed, screens.RunCanceled:
 			c.appendNewMessage(common.RenderWarningBody(msg.Text, c.viewPort.Width()))
