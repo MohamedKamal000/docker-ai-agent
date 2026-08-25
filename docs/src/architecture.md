@@ -10,12 +10,12 @@ This page describes how the project is put together: the major components, how d
 
 ## Data flow for a user message
 
-1. The TUI root model spawns the agent loop in a goroutine, passing the user message over the `AgentCommunication` channels defined in `internal/core/agent_communication.go`.
+1. The user submits a message from the TUI, and the agent runner (`tui/agent_runner.go`) spawns the agent loop in a goroutine, passing the user message over the `AgentCommunication` channels defined in `internal/core/agent_communication.go`. The runner guarantees that at most one loop is alive at any time.
 2. Earlier, at startup, the agent captured a Docker context snapshot through the SDK. The snapshot is formatted into text and embedded in the system prompt.
 3. The intent classifier labels the message as a question, an action request, or ambiguous.
 4. Action requests run the plan and execute loop. Each iteration may invoke `docker_command_tool` through the tool executor.
 5. Tools shell out to the local `docker` binary. Destructive commands route back through the TUI for confirmation before running.
-6. Thoughts, retry notices, warnings, and final responses stream to the TUI over the channel, which closes when the run completes.
+6. Thoughts, retry notices, warnings, and final responses stream to the TUI over the channel, which closes when the run completes. The runner then tears the run down and emits a single terminal event that returns the UI to the idle state.
 
 ## Package layout
 
@@ -28,7 +28,8 @@ internal/core        Config, Genkit client, agent loop, classifier, prompts,
 internal/docker      Docker SDK client, exec helpers, context formatting
 internal/models      Shared models: agent steps and results, docker summaries
 internal/tools       Concrete tool implementations
-tui/                 Bubble Tea root model, screens, common styles, widgets
+tui/                 Agent runner, Bubble Tea root model, screens, common
+                     styles, widgets
 ```
 
 The module itself is named `docker-cli` (visible in `go.mod`) even though the repository is called docker-ai-agent.
@@ -78,7 +79,7 @@ The `MemoryStore` interface currently has an in memory implementation. It record
 
 ### Communication
 
-`agent_communication.go` defines typed messages flowing between the loop goroutine and the UI over two channels. Thoughts, retry notices, warnings requiring confirmation, and final responses travel on `ToUser`; confirmations return on `FromUser`. The loop closes its channel when done, which returns the UI to the idle state.
+`agent_communication.go` defines typed messages flowing between the loop goroutine and the UI over two channels. Thoughts, retry notices, warnings requiring confirmation, and final responses travel on `ToUser`; confirmations return on `FromUser`. The loop closes `ToUser` when done, which returns the UI to the idle state. `FromUser` is intentionally never closed: cancelation is signaled through the run's context instead, so late confirmations can never panic on a closed channel. Accordingly, all blocking waits in the loop (the warning confirmation, retry backoff sleeps) select on `ctx.Done()` via `core.SleepCancellable`, making a canceled run exit promptly.
 
 ### Mock agent
 
@@ -108,9 +109,22 @@ The `MemoryStore` interface currently has an in memory implementation. It record
 
 The interface is built on Bubble Tea v2 with Bubbles v2 components and Lipgloss v2 styling.
 
-`tui.NewRootModel(agent)` constructs the root model from any `AgentLoop`. On each submitted message it spawns the loop in a background goroutine wired to the communication channels, transitions the chat session into the running state, and renders incoming thoughts and results as they arrive.
+`tui.NewRootModel(agent)` constructs the root model from any `AgentLoop`. The root model is a pure screen router: it switches between the home screen and the chat session and forwards lifecycle requests (send, confirm, cancel) to the agent runner. Rendering of incoming thoughts and results is driven entirely by events, so the same UI works unchanged against the mock agent during development.
 
-The chat session is a small state machine under `screens/chat_session/` with states for normal chatting, agent running, warning confirmation, and option selection. Because rendering is driven entirely by channel messages, the same UI works unchanged against the mock agent during development.
+### Agent runner
+
+`AgentRunner` (`tui/agent_runner.go`) is the single owner of the conversation lifecycle between the user and the agent. It exposes three operations — `Start`, `Cancel`, and `Confirm` — and internally manages the run goroutine, the `AgentCommunication` channels, and teardown.
+
+Key invariants:
+
+- **One run at a time.** `Start` refuses while a previous run has not been fully torn down, so two loops can never be alive concurrently. This is enforced structurally rather than by UI convention.
+- **Terminal events after teardown.** Each run ends with exactly one terminal `RunEvent` — `RunFinished`, `RunFailed`, or `RunCanceled` — delivered only after the response pump has drained and the run state has been cleared. The chat session returns to its normal (input-enabled) state solely on a terminal event, which makes stale events from a dead run impossible.
+- **Safe confirmations.** Warning confirmations are delivered off the UI thread with `select` guards on the run context and a timeout, so a dying run can never block or panic the interface.
+- **Decoupled from Bubble Tea.** The runner emits events through a small `Sink` interface (satisfied by `*tea.Program`), which keeps it unit-testable without a running program.
+
+Cancelation is user-facing: pressing `esc` while the agent runs asks the runner to cancel, the context is aborted, and the UI receives a `RunCanceled` terminal event that renders a friendly "Request canceled." message.
+
+The chat session is a small state machine under `screens/chat_session/` with states for normal chatting, agent running, warning confirmation, and option selection. Its state definitions live in a single map (`chatSessionStates`), where each state registers its execute and render functions together, so adding a state is one self-contained entry.
 
 ## Tools (`internal/tools`)
 

@@ -84,8 +84,8 @@ func RenderWarningMessage(message string, width int) string {
 	)
 
 	message = lipgloss.JoinVertical(lipgloss.Left, BRed.Padding(1).
-		Width(width - 3). // 1 for ┃ + 2 spaces
-		MaxWidth(width - 3).
+		Width(width-3). // 1 for ┃ + 2 spaces
+		MaxWidth(width-3).
 		Render(message), status)
 
 	return renderGutterLines(message)
