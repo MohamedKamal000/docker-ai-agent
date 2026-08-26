@@ -9,8 +9,8 @@ import (
 	"github.com/firebase/genkit/go/plugins/googlegenai"
 )
 
-func providerToGenkitPlugin(provider LLMProvider, apiKey string) genkit.GenkitOption {
-	switch provider {
+func providerToGenkitPlugin(provider ProviderInfo, apiKey string) genkit.GenkitOption {
+	switch provider.Provider {
 	case Gemini:
 		return genkit.WithPlugins(&googlegenai.GoogleAI{APIKey: apiKey})
 	case OpenAi:
@@ -28,9 +28,8 @@ type GenkitClient struct {
 }
 
 func NewGenkitClient(config ModelConfig) *GenkitClient {
-	g := genkit.Init(context.Background(), providerToGenkitPlugin(stringToProvider(config.Provider), config.ApiKey),
+	g := genkit.Init(context.Background(), providerToGenkitPlugin(stringToProviderInfo(config.Provider), config.ApiKey),
 		genkit.WithDefaultModel(config.ModelName))
-
 	return &GenkitClient{
 		G:      g,
 		Config: config,
