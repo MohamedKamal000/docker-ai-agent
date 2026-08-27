@@ -17,8 +17,61 @@ const (
 
 	Anthropic
 
+	Ollama
+
+	Deepseek
+
+	Kimi
+
+	Qwen
+
+	Grok
+
 	Unknown
 )
+
+var ProviderMap map[string]ProviderInfo = map[string]ProviderInfo{
+	"Gemini": {
+		Provider:   Gemini,
+		EnvName:    "GEMINI_API_KEY",
+		PrefixName: "googleai",
+	},
+	"OpenAi": {
+		Provider:   OpenAi,
+		EnvName:    "OPENAI_API_KEY",
+		PrefixName: "openai",
+	},
+	"Anthropic": {
+		Provider:   Anthropic,
+		EnvName:    "ANTHROPIC_API_KEY",
+		PrefixName: "anthropic",
+	},
+	"Ollama": {
+		Provider:   Ollama,
+		EnvName:    "SERVER_ADDRESS",
+		PrefixName: "",
+	},
+	"DeepSeek": {
+		Provider:   Deepseek,
+		EnvName:    "DEEPSEEK_API_KEY",
+		PrefixName: "deepseek",
+	},
+	"Kimi": {
+		Provider:   Kimi,
+		EnvName:    "KIMI_API_KEY",
+		PrefixName: "moonshotai",
+	},
+	"Qwen": {
+		Provider:   Qwen,
+		EnvName:    "QWEN_API_KEY",
+		PrefixName: "alibaba",
+	},
+	"Grok": {
+		Provider:   Grok,
+		EnvName:    "GROK_API_KEY",
+		PrefixName: "xai",
+	},
+}
 
 type ModelConfig struct {
 	Provider      string  `json:"provider"`
@@ -26,20 +79,24 @@ type ModelConfig struct {
 	Temperature   float32 `json:"temperature,omitempty"`
 	MaxTokens     uint32  `json:"max-tokens,omitempty"`
 	ApiKey        string  `json:"api-key"`
+	ServerAdress  string  `json:"server-address,omitempty"`
 	MaxIterations int     `json:"max-iterations"`
 }
 
-func stringToProvider(provider string) LLMProvider {
-	switch provider {
-	case "Gemini":
-		return Gemini
-	case "OpenAi":
-		return OpenAi
-	case "Anthropic":
-		return Anthropic
-	default:
-		return Unknown
+type ProviderInfo struct {
+	Provider   LLMProvider
+	EnvName    string
+	PrefixName string
+}
+
+func stringToProviderInfo(provider string) ProviderInfo {
+	prov, ok := ProviderMap[provider]
+	if !ok {
+		return ProviderInfo{
+			Provider: Unknown,
+		}
 	}
+	return prov
 }
 
 func checkFileExists(filePath string) bool {
@@ -77,7 +134,13 @@ func ModelConfigFromJsonFile(filepath string) (ModelConfig, error) {
 	if result.ModelName == "" {
 		return ModelConfig{}, fmt.Errorf("model name can't be empty")
 	}
-	if stringToProvider(result.Provider) == Unknown {
+	proivder := stringToProviderInfo(result.Provider)
+
+	if proivder.Provider != Ollama && !strings.HasPrefix(result.ModelName, proivder.PrefixName) {
+		result.ModelName = proivder.PrefixName + "/" + result.ModelName
+	}
+
+	if proivder.Provider == Unknown {
 		return ModelConfig{}, fmt.Errorf("provider %s is not supported", result.Provider)
 	}
 
@@ -85,16 +148,8 @@ func ModelConfigFromJsonFile(filepath string) (ModelConfig, error) {
 		return ModelConfig{}, fmt.Errorf("max iterations can't be negative")
 	}
 
-	if result.ApiKey == "" {
-		var apiKey string
-		switch stringToProvider(result.Provider) {
-		case Gemini:
-			apiKey = os.Getenv("GEMINI_API_KEY")
-		case Anthropic:
-			apiKey = os.Getenv("ANTHROPIC_API_KEY")
-		case OpenAi:
-			apiKey = os.Getenv("OPENAI_API_KEY")
-		}
+	if result.ApiKey == "" && proivder.Provider != Ollama {
+		apiKey := os.Getenv(proivder.EnvName)
 		if apiKey == "" {
 			return ModelConfig{}, fmt.Errorf("api key not found")
 		}

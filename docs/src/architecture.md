@@ -45,6 +45,11 @@ The module itself is named `docker-cli` (visible in `go.mod`) even though the re
 | `Gemini`    | `googlegenai.GoogleAI`     |
 | `OpenAi`    | `compat_oai/openai.OpenAI` |
 | `Anthropic` | `anthropic.Anthropic`      |
+| `Ollama`    | `ollama.Ollama`            |
+| `DeepSeek`  | `compat_oai/deepseek.DeepSeek` |
+| `Kimi`      | `compat_oai/kimi.Kimi`     |
+| `Qwen`      | `compat_oai/dashscope.DashScope` |
+| `Grok`      | `compat_oai/xai.XAI`       |
 
 The configured `model-name` becomes Genkit's default model so every subsequent generate call uses it without repetition.
 

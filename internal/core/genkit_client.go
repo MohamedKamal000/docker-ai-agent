@@ -5,21 +5,78 @@ import (
 
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/firebase/genkit/go/plugins/anthropic"
+	"github.com/firebase/genkit/go/plugins/compat_oai/dashscope"
+	"github.com/firebase/genkit/go/plugins/compat_oai/deepseek"
+	"github.com/firebase/genkit/go/plugins/compat_oai/kimi"
 	"github.com/firebase/genkit/go/plugins/compat_oai/openai"
+	"github.com/firebase/genkit/go/plugins/compat_oai/xai"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
+	"github.com/firebase/genkit/go/plugins/ollama"
 )
 
-func providerToGenkitPlugin(provider LLMProvider, apiKey string) genkit.GenkitOption {
-	switch provider {
-	case Gemini:
-		return genkit.WithPlugins(&googlegenai.GoogleAI{APIKey: apiKey})
-	case OpenAi:
-		return genkit.WithPlugins(&openai.OpenAI{APIKey: apiKey})
-	case Anthropic:
-		return genkit.WithPlugins(&anthropic.Anthropic{APIKey: apiKey})
+var providerPlugins = map[LLMProvider]func(string) genkit.GenkitOption{
+	Gemini: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&googlegenai.GoogleAI{
+			APIKey: apiKey,
+		})
+	},
+
+	OpenAi: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&openai.OpenAI{
+			APIKey: apiKey,
+		})
+	},
+
+	Anthropic: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&anthropic.Anthropic{
+			APIKey: apiKey,
+		})
+	},
+
+	Ollama: func(serverAddress string) genkit.GenkitOption {
+		return genkit.WithPlugins(&ollama.Ollama{
+			ServerAddress: serverAddress,
+			Timeout:       60,
+		})
+	},
+
+	Deepseek: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&deepseek.DeepSeek{
+			APIKey: apiKey,
+		})
+	},
+
+	Kimi: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&kimi.Kimi{
+			APIKey: apiKey,
+		})
+	},
+
+	Qwen: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&dashscope.DashScope{
+			APIKey: apiKey,
+		})
+	},
+
+	Grok: func(apiKey string) genkit.GenkitOption {
+		return genkit.WithPlugins(&xai.XAI{
+			APIKey: apiKey,
+		})
+	},
+}
+
+func providerToGenkitPlugin(config ModelConfig) genkit.GenkitOption {
+	provider := stringToProviderInfo(config.Provider).Provider
+	providerFunc, ok := providerPlugins[provider]
+	if !ok { // likely not possible since we check this already in the config parsing step
+		return nil
 	}
 
-	return nil
+	if provider == Ollama {
+		return providerFunc(config.ServerAdress)
+	}
+
+	return providerFunc(config.ApiKey)
 }
 
 type GenkitClient struct {
@@ -28,9 +85,8 @@ type GenkitClient struct {
 }
 
 func NewGenkitClient(config ModelConfig) *GenkitClient {
-	g := genkit.Init(context.Background(), providerToGenkitPlugin(stringToProvider(config.Provider), config.ApiKey),
+	g := genkit.Init(context.Background(), providerToGenkitPlugin(config),
 		genkit.WithDefaultModel(config.ModelName))
-
 	return &GenkitClient{
 		G:      g,
 		Config: config,
