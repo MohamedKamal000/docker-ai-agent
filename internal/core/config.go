@@ -30,6 +30,49 @@ const (
 	Unknown
 )
 
+var ProviderMap map[string]ProviderInfo = map[string]ProviderInfo{
+	"Gemini": {
+		Provider:   Gemini,
+		EnvName:    "GEMINI_API_KEY",
+		PrefixName: "googleai",
+	},
+	"OpenAi": {
+		Provider:   OpenAi,
+		EnvName:    "OPENAI_API_KEY",
+		PrefixName: "openai",
+	},
+	"Anthropic": {
+		Provider:   Anthropic,
+		EnvName:    "ANTHROPIC_API_KEY",
+		PrefixName: "anthropic",
+	},
+	"Ollama": {
+		Provider:   Ollama,
+		EnvName:    "SERVER_ADDRESS",
+		PrefixName: "",
+	},
+	"DeepSeek": {
+		Provider:   Deepseek,
+		EnvName:    "DEEPSEEK_API_KEY",
+		PrefixName: "deepseek",
+	},
+	"Kimi": {
+		Provider:   Kimi,
+		EnvName:    "KIMI_API_KEY",
+		PrefixName: "moonshotai",
+	},
+	"Qwen": {
+		Provider:   Qwen,
+		EnvName:    "QWEN_API_KEY",
+		PrefixName: "alibaba",
+	},
+	"Grok": {
+		Provider:   Grok,
+		EnvName:    "GROK_API_KEY",
+		PrefixName: "xai",
+	},
+}
+
 type ModelConfig struct {
 	Provider      string  `json:"provider"`
 	ModelName     string  `json:"model-name"`
@@ -41,47 +84,13 @@ type ModelConfig struct {
 }
 
 type ProviderInfo struct {
-	Provider LLMProvider
-	EnvName  string
+	Provider   LLMProvider
+	EnvName    string
+	PrefixName string
 }
 
 func stringToProviderInfo(provider string) ProviderInfo {
-	providerMap := map[string]ProviderInfo{
-		"Gemini": {
-			Provider: Gemini,
-			EnvName:  "GEMINI_API_KEY",
-		},
-		"OpenAi": {
-			Provider: OpenAi,
-			EnvName:  "OPENAI_API_KEY",
-		},
-		"Anthropic": {
-			Provider: Anthropic,
-			EnvName:  "ANTHROPIC_API_KEY",
-		},
-		"Ollama": {
-			Provider: Ollama,
-			EnvName:  "SERVER_ADDRESS",
-		},
-		"DeepSeek": {
-			Provider: Deepseek,
-			EnvName:  "DEEPSEEK_API_KEY",
-		},
-		"Kimi": {
-			Provider: Kimi,
-			EnvName:  "KIMI_API_KEY",
-		},
-		"Qwen": {
-			Provider: Qwen,
-			EnvName:  "QWEN_API_KEY",
-		},
-		"Grok": {
-			Provider: Grok,
-			EnvName:  "GROK_API_KEY",
-		},
-	}
-
-	prov, ok := providerMap[provider]
+	prov, ok := ProviderMap[provider]
 	if !ok {
 		return ProviderInfo{
 			Provider: Unknown,
@@ -126,6 +135,10 @@ func ModelConfigFromJsonFile(filepath string) (ModelConfig, error) {
 		return ModelConfig{}, fmt.Errorf("model name can't be empty")
 	}
 	proivder := stringToProviderInfo(result.Provider)
+
+	if proivder.Provider != Ollama && !strings.HasPrefix(result.ModelName, proivder.PrefixName) {
+		result.ModelName = proivder.PrefixName + "/" + result.ModelName
+	}
 
 	if proivder.Provider == Unknown {
 		return ModelConfig{}, fmt.Errorf("provider %s is not supported", result.Provider)
