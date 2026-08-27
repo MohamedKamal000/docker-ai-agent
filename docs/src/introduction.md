@@ -26,7 +26,7 @@ Each message you send goes through a short pipeline:
 - **Docker awareness**: containers, images, volumes, and networks are snapshotted via the Docker SDK and injected into every prompt.
 - **Real tool execution**: the agent does not just suggest commands, it runs them locally and reads their output.
 - **Safety checks**: destructive commands such as `rm`, `prune`, or `stop` trigger a confirmation warning in the UI before anything executes.
-- **Pluggable LLM providers** through Genkit: Google Gemini, OpenAI, and Anthropic are supported out of the box.
+- **Pluggable LLM providers** through Genkit: Google Gemini, OpenAI, Anthropic, Ollama (local), DeepSeek, Kimi, Qwen, and Grok are supported out of the box.
 - **Session memory**: previous goals and executed commands are stored and included in later prompts, giving the agent continuity across messages.
 
 ## Project status

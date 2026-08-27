@@ -23,7 +23,7 @@ At a high level:
 - A main loop selects the next action, maps it to a tool call from the **Tool Registry**, and stores results in memory.
 - The **Tool Registry** discovers and manages available tools (`internal/tools`).
 - The Docker SDK wrapper provides structured access to containers, images, volumes, and networks.
-- LLM providers are pluggable via Genkit (Gemini, OpenAI, Anthropic).
+- LLM providers are pluggable via Genkit (Gemini, OpenAI, Anthropic, Ollama, DeepSeek, Kimi, Qwen, Grok).
 
 ## Features
 
@@ -48,28 +48,64 @@ The agent can be configured via a `config.json` file or environment variables.
 
 Create a `config.json` file in the root of the project. You can use the `-c` or `--config` flag to specify a different path.
 
+**Gemini example:**
+
 ```json
 {
   "provider": "Gemini",
-  "model-name": "gemini-1.5-flash",
+  "model-name": "gemini-2.5-flash-lite",
   "temperature": 0.7,
   "max-tokens": 1024,
-  "api-key": "your_api_key_here",
   "max-iterations": 10
 }
 ```
 
-Note: If `api-key` is not provided, the agent will look for environment variables: `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY` based on the provider.
+**OpenAI example:**
+
+```json
+{
+  "provider": "OpenAi",
+  "model-name": "gpt-4o-mini",
+  "temperature": 0.7,
+  "max-tokens": 1024,
+  "max-iterations": 10
+}
+```
+
+**Ollama example (local, no API key needed):**
+
+```json
+{
+  "provider": "Ollama",
+  "model-name": "llama3",
+  "server-address": "http://localhost:11434",
+  "temperature": 0.7,
+  "max-tokens": 1024,
+  "max-iterations": 10
+}
+```
+
+We support 8 providers total: Gemini, OpenAI, Anthropic, Ollama, DeepSeek, Kimi, Qwen, and Grok. See the [Reference](./docs/src/reference.md) page for the full list and API key setup instructions.
+
+Note: If `api-key` is not provided, the agent will look for the appropriate environment variable based on the provider.
 
 ### Environment Variables
 
 If you prefer not to include the API key in the config file, you can set it as an environment variable.
 
-Example for Gemini:
+Examples:
 
 ```bash
 export GEMINI_API_KEY=your_key_here
+export OPENAI_API_KEY=your_key_here
+export ANTHROPIC_API_KEY=your_key_here
+export DEEPSEEK_API_KEY=your_key_here
+export KIMI_API_KEY=your_key_here
+export QWEN_API_KEY=your_key_here
+export GROK_API_KEY=your_key_here
 ```
+
+Ollama does not require an API key.
 
 ## How to Use
 

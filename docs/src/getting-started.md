@@ -9,7 +9,7 @@ This page walks you through everything needed to go from a clean machine to a wo
 | **Go 1.25+** | Needed to build and run from source |
 | **Docker Engine** | Must be installed and running locally; the agent talks to the daemon through the Docker SDK |
 | **`docker` binary in PATH** | Tool execution shells out to the local CLI, so it must be resolvable |
-| **An LLM API key** | From Gemini, OpenAI, or Anthropic. You only need one of them |
+| **An LLM API key** | From Gemini, OpenAI, Anthropic, DeepSeek, Kimi, Qwen, Grok, or use Ollama locally. You only need one |
 
 Before anything else, confirm that Docker is reachable on your machine:
 
@@ -77,6 +77,52 @@ Environment variable name: `OPENAI_API_KEY`
 
 Environment variable name: `ANTHROPIC_API_KEY`
 
+#### DeepSeek
+
+1. Open [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) and sign in.
+2. Create an API key and copy the value.
+
+Environment variable name: `DEEPSEEK_API_KEY`
+
+#### Kimi (Moonshot AI)
+
+1. Open [platform.moonshot.cn/console/api-keys](https://platform.moonshot.cn/console/api-keys) and sign in.
+2. Create an API key and copy the value.
+
+Environment variable name: `KIMI_API_KEY`
+
+#### Qwen (Alibaba)
+
+1. Open [dashscope.console.aliyun.com/apiKey](https://dashscope.console.aliyun.com/apiKey) and sign in.
+2. Create an API key and copy the value.
+
+Environment variable name: `QWEN_API_KEY`
+
+#### Grok (xAI)
+
+1. Open [console.x.ai/](https://console.x.ai/) and sign in.
+2. Create an API key and copy the value.
+
+Environment variable name: `GROK_API_KEY`
+
+#### Ollama (local)
+
+No API key required. Install Ollama from [ollama.com](https://ollama.com) and ensure the server is running:
+
+```bash
+ollama serve
+```
+
+Configure the server address in your `config.json`:
+
+```json
+{
+  "provider": "Ollama",
+  "model-name": "llama3",
+  "server-address": "http://localhost:11434"
+}
+```
+
 ### Storing the key as an environment variable
 
 For the current shell session only, export the variable before running the agent:
@@ -122,7 +168,7 @@ This is convenient for local experiments but risky in practice. If you share the
 
 - Never commit API keys to git. If a key has been exposed, rotate it immediately from the provider console.
 - Prefer restricted or scoped keys where the provider supports them.
-- Remember which provider maps to which variable: `Gemini` uses `GEMINI_API_KEY`, `OpenAi` uses `OPENAI_API_KEY`, and `Anthropic` uses `ANTHROPIC_API_KEY`. The resolution rules are described in detail on the [Reference](./reference.md) page.
+- Remember which provider maps to which variable: `Gemini` uses `GEMINI_API_KEY`, `OpenAi` uses `OPENAI_API_KEY`, `Anthropic` uses `ANTHROPIC_API_KEY`, `DeepSeek` uses `DEEPSEEK_API_KEY`, `Kimi` uses `KIMI_API_KEY`, `Qwen` uses `QWEN_API_KEY`, and `Grok` uses `GROK_API_KEY`. Ollama does not require an API key. The resolution rules are described in detail on the [Reference](./reference.md) page.
 
 ## Configuration
 
@@ -146,7 +192,7 @@ With this config and no `api-key` field present, the agent will read the key fro
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | yes | Which LLM backend to use: `Gemini`, `OpenAi`, or `Anthropic` |
+| `provider` | string | yes | Which LLM backend to use: `Gemini`, `OpenAi`, `Anthropic`, `Ollama`, `DeepSeek`, `Kimi`, `Qwen`, or `Grok` |
 | `model-name` | string | yes | The provider specific model ID, for example `googleai/gemini-2.5-flash-lite` |
 | `api-key` | string | no | API key used for authentication; falls back to the environment when omitted |
 | `temperature` | float | no | Sampling temperature; higher values make output more creative, lower values more deterministic |
