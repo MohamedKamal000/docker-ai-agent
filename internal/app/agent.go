@@ -43,14 +43,15 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	sessionContext := &core.LoopContext{
 		Memory: chatSession,
 		Tools:  toolRegistry}
-	err = docker.Init()
-	if err != nil {
-		return nil, err
-	}
-
-	dockerContext, err := docker.GetContext(ctx)
-	if err != nil {
-		return nil, err
+	var dockerContext *docker.Context
+	if err = docker.Init(); err != nil {
+		fmt.Printf("warning: Docker daemon unavailable (%v) — running without live Docker state\n", err)
+		dockerContext = &docker.Context{}
+	} else {
+		dockerContext, err = docker.GetContext(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	systemPrompt, err := core.ParsePrompt(core.System_Prompt_Template, dockerContext)
