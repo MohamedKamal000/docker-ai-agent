@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"docker-cli/internal/core"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -225,7 +227,25 @@ func ParseCommands(block string) []string {
 	return out
 }
 
-func Exec(ctx context.Context, command string) (ExecResult, error) {
+func isLongRunning(command string) bool {
+	lower := strings.ToLower(command)
+	if strings.Contains(lower, "docker run") &&
+		!strings.Contains(lower, "-d") && !strings.Contains(lower, "--detach") {
+		return true
+	}
+	if strings.Contains(lower, "docker compose up") ||
+		strings.Contains(lower, "docker-compose up") {
+		return true
+	}
+	if strings.Contains(lower, "docker build") ||
+		strings.Contains(lower, "docker push") ||
+		strings.Contains(lower, "docker pull") {
+		return true
+	}
+	return false
+}
+
+func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (ExecResult, error) {
 	must()
 	args, err := shellSplit(command)
 	if err != nil {
@@ -237,6 +257,45 @@ func Exec(ctx context.Context, command string) (ExecResult, error) {
 	}
 	if len(args) == 0 {
 		return ExecResult{}, fmt.Errorf("docker: empty command")
+	}
+
+	fullCommand := dockerBin + " " + strings.Join(args, " ")
+	fmt.Printf("fullCommand: %v\n", fullCommand)
+	if isLongRunning(fullCommand) {
+		println("Yes")
+		taskID := tasks.Register(&core.TaskRecord{
+			Tool:  "docker_command_tool",
+			Input: fullCommand,
+		})
+
+		go func(id string) {
+			var stdout, stderr bytes.Buffer
+			cmd := exec.CommandContext(ctx, dockerBin, args...)
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+			runErr := cmd.Run()
+
+
+			exitCode := 0
+			if runErr != nil {
+				if exitErr, ok := runErr.(*exec.ExitError); ok {
+					exitCode = exitErr.ExitCode()
+				}
+			}
+
+			if exitCode == 0 {
+				tasks.Update(id, core.TaskSucceeded, fmt.Sprintf("Command completed successfully. Output: %s", stdout.String()), "")
+			} else {
+				tasks.Update(id, core.TaskFailed, "", fmt.Sprintf("Command failed with exit code %d. Error: %s", exitCode, stderr.String()))
+			}
+		}(taskID)
+
+		return ExecResult{
+			Command:  fullCommand,
+			Stdout:   fmt.Sprintf("Command started in background with task ID: %s. Use 'docker ps' to check status.", taskID),
+			ExitCode: 0,
+			Duration: 0,
+		}, nil
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -258,7 +317,7 @@ func Exec(ctx context.Context, command string) (ExecResult, error) {
 	}
 
 	return ExecResult{
-		Command:  dockerBin + " " + strings.Join(args, " "),
+		Command:  fullCommand,
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		ExitCode: exitCode,
@@ -266,10 +325,10 @@ func Exec(ctx context.Context, command string) (ExecResult, error) {
 	}, nil
 }
 
-func ExecMany(ctx context.Context, commands []string, continueOnError bool) ([]ExecResult, error) {
+func ExecMany(ctx context.Context, commands []string, continueOnError bool, tasks *core.TaskRegistry) ([]ExecResult, error) {
 	results := make([]ExecResult, 0, len(commands))
 	for _, cmd := range commands {
-		result, err := Exec(ctx, cmd)
+		result, err := Exec(ctx, cmd, tasks)
 		if err != nil {
 			return results, err
 		}
@@ -316,7 +375,8 @@ func FormatContextPrompt(dc *Context) string {
 
 	sb.WriteString(fmt.Sprintf("\n## Networks (%d)\n", len(dc.Networks)))
 	for _, n := range dc.Networks {
-		sb.WriteString(fmt.Sprintf("  %-20s  driver=%-10s  scope=%s\n", n.Name, n.Driver, n.Scope))
+		sb.WriteString(fmt.Sprintf("  %-20s  driver=%-10s  scope=%s\n",
+			n.Name, n.Driver, n.Scope))
 	}
 
 	sb.WriteString("\n=== End Docker Environment ===\n")

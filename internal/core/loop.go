@@ -20,6 +20,7 @@ type AgentLoop interface {
 type LoopContext struct {
 	Memory MemoryStore
 	Tools  ToolRegistry
+	Tasks  *TaskRegistry
 }
 
 type GenkitAgentLoop struct {
