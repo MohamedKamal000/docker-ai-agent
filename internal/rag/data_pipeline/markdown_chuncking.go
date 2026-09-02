@@ -73,11 +73,11 @@ type ChunkGenerator struct {
 	documentsDirectoryPath string
 }
 
-func NewChunkGenerator(chunkSize uint, overlapSize uint, folderPath string) ChunkGenerator {
+func NewChunkGenerator(chunkSize uint, overlapSize uint, dirPath string) ChunkGenerator {
 	return ChunkGenerator{
 		chunkSize:              chunkSize,
 		overlapSize:            overlapSize,
-		documentsDirectoryPath: folderPath,
+		documentsDirectoryPath: dirPath,
 	}
 }
 
@@ -85,8 +85,8 @@ func (cg *ChunkGenerator) ProduceChunks(ch chan<- models.Chunk) {
 	defer close(ch)
 	markDownSplitter := textsplitter.NewMarkdownTextSplitter(
 		textsplitter.WithHeadingHierarchy(true),
-		textsplitter.WithKeepSeparator(true),
 		textsplitter.WithCodeBlocks(true),
+		textsplitter.WithKeepSeparator(true),
 		textsplitter.WithChunkSize(int(cg.chunkSize)),
 		textsplitter.WithChunkOverlap(int(cg.overlapSize)))
 

@@ -8,6 +8,7 @@ import (
 	models "docker-cli/internal/rag/models"
 
 	"github.com/knights-analytics/hugot"
+	"github.com/knights-analytics/hugot/options"
 	"github.com/knights-analytics/hugot/pipelines"
 )
 
@@ -16,13 +17,25 @@ type LocalEmbedder struct {
 	pipeline *pipelines.FeatureExtractionPipeline
 }
 
-func NewLocalEmbedder(ctx context.Context, modelDir string) (*LocalEmbedder, error) {
+func NewLocalEmbedder(ctx context.Context, modelDir string, cudaEnabled bool) (*LocalEmbedder, error) {
 	modelPath, err := filepath.Abs(modelDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve model path: %w", err)
 	}
 
-	session, err := hugot.NewGoSession(ctx)
+	var session *hugot.Session
+	if cudaEnabled {
+		opts := []options.WithOption{
+			options.WithCuda(map[string]string{
+				"device_id": "0",
+			}),
+			options.WithOnnxLibraryPath("/usr/local/lib/"),
+		}
+		session, err = hugot.NewORTSession(ctx, opts...)
+	} else {
+		session, err = hugot.NewGoSession(ctx)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("create Hugot Go session: %w", err)
 	}
