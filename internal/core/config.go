@@ -73,14 +73,25 @@ var ProviderMap map[string]ProviderInfo = map[string]ProviderInfo{
 	},
 }
 
+// Api key will be => EMBEDDING_API_KEY
+type RAGConfig struct {
+	EmbeddingType string `json:"embedding-type"` // either local or remote
+	InferenceType string `json:"inference-type"` // either cpu or gpu (gpu needs cuda run time)
+	ChunkSize     int    `json:"chunk-size"`
+	OverlapSize   int    `json:"overlap-size"`
+	WorkersNumber int    `json:"workers-number"` // won't really make a deal when running on gpu
+	ModelName     string `json:"model-name"`
+}
+
 type ModelConfig struct {
-	Provider      string  `json:"provider"`
-	ModelName     string  `json:"model-name"`
-	Temperature   float32 `json:"temperature,omitempty"`
-	MaxTokens     uint32  `json:"max-tokens,omitempty"`
-	ApiKey        string  `json:"api-key"`
-	ServerAdress  string  `json:"server-address,omitempty"`
-	MaxIterations int     `json:"max-iterations"`
+	Provider      string     `json:"provider"`
+	ModelName     string     `json:"model-name"`
+	Temperature   float32    `json:"temperature,omitempty"`
+	MaxTokens     uint32     `json:"max-tokens,omitempty"`
+	ApiKey        string     `json:"api-key"`
+	ServerAdress  string     `json:"server-address,omitempty"`
+	MaxIterations int        `json:"max-iterations"`
+	RagConfig     *RAGConfig `json:"rag-specs,omitempty"`
 }
 
 type ProviderInfo struct {
