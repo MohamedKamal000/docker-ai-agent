@@ -1,0 +1,21 @@
+[book]
+title = "Docker AI Agent"
+authors = ["MohamedKamal000"]
+description = "A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI without the need to install docker desktop."
+src = "src"
+language = "en"
+
+[build]
+build-dir = "book"
+create-missing = true
+
+[output.html]
+# "auto" follows the reader's OS light/dark preference.
+# Readers can switch themes any time with the paintbrush icon in the top bar.
+default-theme = "auto"
+preferred-dark-theme = "navy"
+smart-punctuation = true
+mathjax-support = false
+additional-css = ["src/css/custom.css"]
+git-repository-url = "https://github.com/your-org/docker-ai-agent"
+edit-url-template = "https://github.com/your-org/docker-ai-agent/edit/main/docs/{path}"

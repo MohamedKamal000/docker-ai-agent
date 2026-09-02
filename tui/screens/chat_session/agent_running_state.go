@@ -14,8 +14,8 @@ import (
 func (c *ChatSessionModel) sendAiMessage(message string, responseType core.ResponseType) {
 	switch responseType {
 	case core.FinalResponse:
+		// Input is unlocked by the terminal RunFinished event, not here.
 		message = common.FMobyBlue.Render("Agent: ") + message
-		c.stateManager.SwitchTo(NormalState.Value())
 	case core.Thoughts:
 		message = common.FMobyBlue.Render("Thoughts: ") + message
 	case core.Warning:
@@ -31,29 +31,43 @@ func (c *ChatSessionModel) sendAiMessage(message string, responseType core.Respo
 
 func AgentRunningStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case screens.ErrorMessage:
-		c.appendNewMessage(common.RenderWarningBody(msg.Message, c.viewPort.Width()))
-		c.stateManager.SwitchTo(NormalState.Value())
-	case screens.ReceiveMessageResponse:
-		c.sendAiMessage(msg.Response.Message, msg.Response.Type)
-		return c, c.spinner.Tick
+	case tea.KeyPressMsg:
+		if msg.String() == "esc" {
+			return c, func() tea.Msg {
+				return screens.CancelAgentRequest{}
+			}
+		}
+	case screens.RunEvent:
+		switch msg.Kind {
+		case screens.RunResponse:
+			c.sendAiMessage(msg.Data.Message, msg.Data.Type)
+			return c, c.spinner.Tick
+		case screens.RunFailed:
+			c.appendNewMessage(common.RenderWarningBody(msg.Text, c.viewPort.Width()))
+			c.stateManager.SwitchTo(NormalState.Value())
+		case screens.RunCanceled:
+			c.appendNewMessage(common.FMobyBlue.Render("Agent: ") + "Request canceled.")
+			c.stateManager.SwitchTo(NormalState.Value())
+		case screens.RunFinished:
+			c.stateManager.SwitchTo(NormalState.Value())
+		}
 	}
 
 	return c, c.updateChildren(msg)
 }
 
 func AgentRunningStateRender(s *common.StateManager[*ChatSessionModel], m *ChatSessionModel) tea.View {
-	line := common.RenderStatusLineBorder(m.width, "model name")
-	spin := fmt.Sprintf("%s Agent is Running", m.spinner.View())
-	chatBox := lipgloss.Place(
-		m.width,
-		m.height-m.viewPort.Height(),
+	left := fmt.Sprintf("%s Agent is Running", m.spinner.View())
+	right := common.FCyan.Render("esc Cancel")
+	status := lipgloss.JoinHorizontal(
 		lipgloss.Left,
-		lipgloss.Bottom,
-		lipgloss.JoinVertical(lipgloss.Left, lipgloss.NewStyle().PaddingBottom(1).Render(spin), m.ta.View(), line),
+		left,
+		lipgloss.PlaceHorizontal(
+			m.width-(lipgloss.Width(left)+lipgloss.Width(right)),
+			lipgloss.Right,
+			right,
+		),
 	)
 
-	content := m.viewPort.View() + "\n" + chatBox
-
-	return tea.NewView(content)
+	return renderChatScreen(m, lipgloss.NewStyle().PaddingBottom(1).Render(status))
 }

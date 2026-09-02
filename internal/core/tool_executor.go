@@ -18,21 +18,25 @@ func NewToolExecutor(registry ToolRegistry) *ToolExecutor {
 func (te *ToolExecutor) ExecuteGenkitTool(ctx context.Context, modelResponse *ai.ModelResponse, comm *AgentCommunication) (map[string]string, error) {
 	toolsOutput := make(map[string]string)
 	for _, req := range modelResponse.ToolRequests() {
-		tool, ok := te.registry.Get(req.Name)
+		tool, ok := te.registry.Get(req.ToolRequest.Name)
 		if !ok {
-			return nil, fmt.Errorf("tool %s not found", req.Name)
+			return nil, fmt.Errorf("tool %s not found", req.ToolRequest.Name)
 		}
-		warn, ok := tool.ShouldRaiseWarning(req.Input)
+		warn, ok := tool.ShouldRaiseWarning(req.ToolRequest.Input)
 		if ok {
 			comm.ToUser <- NewWarning(warn)
-			cmd := <-comm.FromUser
+			var cmd UserCommand
+			select {
+			case cmd = <-comm.FromUser:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 
 			if !cmd.ShouldContinue {
 				return nil, fmt.Errorf("execution is canceled")
 			}
 		}
-		output, err := tool.Call(ctx, req.Input)
-
+		output, err := tool.Call(ctx, req.ToolRequest.Input)
 		if err != nil {
 			return nil, err
 		}

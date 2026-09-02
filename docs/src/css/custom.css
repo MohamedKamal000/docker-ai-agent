@@ -1,0 +1,38 @@
+/* Keep all body text aligned to the left instead of justified. */
+.content {
+    text-align: left;
+}
+
+.content main {
+    text-align: left;
+}
+
+/* Make fenced code blocks (```) clearly visible in every theme. */
+.content pre {
+    border: 1px solid var(--quote-border);
+    border-radius: 8px;
+    padding: 1em 1.2em;
+    margin-block: 1.2em;
+    background-color: var(--quote-bg);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 18%);
+}
+
+/* Let the pre background show through instead of the highlight.js one,
+   so the block color always matches the active theme. */
+.content pre code,
+.content pre .hljs {
+    display: block;
+    padding: 0;
+    overflow-x: auto;
+}
+
+.content pre .hljs {
+    background: transparent;
+}
+
+/* Slightly emphasize inline `code` as well so it stands apart from text. */
+.content code:not(pre code) {
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    border: 1px solid var(--quote-border);
+}
