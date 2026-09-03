@@ -29,6 +29,7 @@ var agent_chat = &cobra.Command{
 		// needs a way to make the user choose the tools to use before running this command
 		agent, err := app.NewAgent(config, ctx, []string{
 			"docker_command_tool",
+			"task_status_tool",
 		})
 
 		if err != nil {

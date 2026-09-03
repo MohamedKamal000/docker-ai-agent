@@ -17,7 +17,10 @@ type Agent struct {
 
 var availableTools = map[string]func() core.Tool{
 	"docker_command_tool": func() core.Tool {
-		return tools.NewDockerCommandsTool()
+		return tools.NewDockerCommandsTool(nil)
+	},
+	"task_status_tool": func() core.Tool {
+		return tools.NewTaskStatusTool(nil)
 	},
 }
 
@@ -36,13 +39,27 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	genkitClient := core.NewGenkitClient(config)
 	chatSession := core.NewStaticMemoryStore()
 	toolRegistry := core.NewGenkitToolRegistry()
+	taskRegistry := core.NewTaskRegistry()
+
 	err := initalizeRegistery(genkitClient.G, toolRegistry, toolsToRegister)
 	if err != nil {
 		return nil, err
 	}
+
+	for _, tool := range toolRegistry.List() {
+		if dt, ok := tool.(*tools.DockerCommandsTool); ok {
+			dt.Tasks = taskRegistry
+		}
+		if st, ok := tool.(*tools.TaskStatusTool); ok {
+			st.Tasks = taskRegistry
+		}
+	}
+
 	sessionContext := &core.LoopContext{
 		Memory: chatSession,
-		Tools:  toolRegistry}
+		Tools:  toolRegistry,
+		Tasks:  taskRegistry,
+	}
 	err = docker.Init()
 	if err != nil {
 		return nil, err

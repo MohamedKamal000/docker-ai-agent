@@ -3,11 +3,14 @@ package docker
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"docker-cli/internal/core"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -225,7 +228,7 @@ func ParseCommands(block string) []string {
 	return out
 }
 
-func Exec(ctx context.Context, command string) (ExecResult, error) {
+func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (ExecResult, error) {
 	must()
 	args, err := shellSplit(command)
 	if err != nil {
@@ -239,37 +242,99 @@ func Exec(ctx context.Context, command string) (ExecResult, error) {
 		return ExecResult{}, fmt.Errorf("docker: empty command")
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, dockerBin, args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	fullCommand := dockerBin + " " + strings.Join(args, " ")
 
-	start := time.Now()
-	runErr := cmd.Run()
-	elapsed := time.Since(start)
+	if tasks == nil {
+		var stdout, stderr bytes.Buffer
+		cmd := exec.CommandContext(ctx, dockerBin, args...)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 
-	exitCode := 0
-	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
+		start := time.Now()
+		runErr := cmd.Run()
+		elapsed := time.Since(start)
+
+		exitCode := 0
+		if runErr != nil {
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				return ExecResult{}, fmt.Errorf("docker: exec %v: %w", args, runErr)
+			}
+		}
+
+		return ExecResult{
+			Command:  fullCommand,
+			Stdout:   stdout.String(),
+			Stderr:   stderr.String(),
+			ExitCode: exitCode,
+			Duration: elapsed,
+		}, nil
+	}
+
+	taskID := tasks.Register(&core.TaskRecord{
+		Tool:  "docker_command_tool",
+		Input: fullCommand,
+	})
+
+	go func(id string) {
+		var stdout, stderr bytes.Buffer
+		cmd := exec.CommandContext(ctx, dockerBin, args...)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		start := time.Now()
+		runErr := cmd.Run()
+		elapsed := time.Since(start)
+
+		exitCode := 0
+		if runErr != nil {
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			}
+		}
+
+		res := ExecResult{
+			Command:  fullCommand,
+			Stdout:   stdout.String(),
+			Stderr:   stderr.String(),
+			ExitCode: exitCode,
+			Duration: elapsed,
+		}
+
+		resJSON, _ := json.Marshal(res)
+
+		if exitCode == 0 {
+			tasks.Update(id, core.TaskSucceeded, string(resJSON), "")
 		} else {
-			return ExecResult{}, fmt.Errorf("docker: exec %v: %w", args, runErr)
+			tasks.Update(id, core.TaskFailed, string(resJSON), fmt.Sprintf("Command failed with exit code %d. Error: %s", exitCode, stderr.String()))
+		}
+	}(taskID)
+
+	rec, err := tasks.Wait(ctx, taskID)
+	if err != nil {
+		return ExecResult{}, err
+	}
+
+	var res ExecResult
+	if rec.Result != "" {
+		if err := json.Unmarshal([]byte(rec.Result), &res); err == nil {
+			return res, nil
 		}
 	}
 
 	return ExecResult{
-		Command:  dockerBin + " " + strings.Join(args, " "),
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		ExitCode: exitCode,
-		Duration: elapsed,
+		Command:  fullCommand,
+		Stdout:   rec.Result,
+		Stderr:   rec.Error,
+		ExitCode: 0,
 	}, nil
 }
 
-func ExecMany(ctx context.Context, commands []string, continueOnError bool) ([]ExecResult, error) {
+func ExecMany(ctx context.Context, commands []string, continueOnError bool, tasks *core.TaskRegistry) ([]ExecResult, error) {
 	results := make([]ExecResult, 0, len(commands))
 	for _, cmd := range commands {
-		result, err := Exec(ctx, cmd)
+		result, err := Exec(ctx, cmd, tasks)
 		if err != nil {
 			return results, err
 		}
@@ -316,7 +381,8 @@ func FormatContextPrompt(dc *Context) string {
 
 	sb.WriteString(fmt.Sprintf("\n## Networks (%d)\n", len(dc.Networks)))
 	for _, n := range dc.Networks {
-		sb.WriteString(fmt.Sprintf("  %-20s  driver=%-10s  scope=%s\n", n.Name, n.Driver, n.Scope))
+		sb.WriteString(fmt.Sprintf("  %-20s  driver=%-10s  scope=%s\n",
+			n.Name, n.Driver, n.Scope))
 	}
 
 	sb.WriteString("\n=== End Docker Environment ===\n")
