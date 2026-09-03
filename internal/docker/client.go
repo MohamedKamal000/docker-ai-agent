@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -227,24 +228,6 @@ func ParseCommands(block string) []string {
 	return out
 }
 
-func isLongRunning(command string) bool {
-	lower := strings.ToLower(command)
-	if strings.Contains(lower, "docker run") &&
-		!strings.Contains(lower, "-d") && !strings.Contains(lower, "--detach") {
-		return true
-	}
-	if strings.Contains(lower, "docker compose up") ||
-		strings.Contains(lower, "docker-compose up") {
-		return true
-	}
-	if strings.Contains(lower, "docker build") ||
-		strings.Contains(lower, "docker push") ||
-		strings.Contains(lower, "docker pull") {
-		return true
-	}
-	return false
-}
-
 func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (ExecResult, error) {
 	must()
 	args, err := shellSplit(command)
@@ -260,68 +243,91 @@ func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (ExecRe
 	}
 
 	fullCommand := dockerBin + " " + strings.Join(args, " ")
-	fmt.Printf("fullCommand: %v\n", fullCommand)
-	if isLongRunning(fullCommand) {
-		println("Yes")
-		taskID := tasks.Register(&core.TaskRecord{
-			Tool:  "docker_command_tool",
-			Input: fullCommand,
-		})
 
-		go func(id string) {
-			var stdout, stderr bytes.Buffer
-			cmd := exec.CommandContext(ctx, dockerBin, args...)
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			runErr := cmd.Run()
+	if tasks == nil {
+		var stdout, stderr bytes.Buffer
+		cmd := exec.CommandContext(ctx, dockerBin, args...)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 
+		start := time.Now()
+		runErr := cmd.Run()
+		elapsed := time.Since(start)
 
-			exitCode := 0
-			if runErr != nil {
-				if exitErr, ok := runErr.(*exec.ExitError); ok {
-					exitCode = exitErr.ExitCode()
-				}
-			}
-
-			if exitCode == 0 {
-				tasks.Update(id, core.TaskSucceeded, fmt.Sprintf("Command completed successfully. Output: %s", stdout.String()), "")
+		exitCode := 0
+		if runErr != nil {
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
 			} else {
-				tasks.Update(id, core.TaskFailed, "", fmt.Sprintf("Command failed with exit code %d. Error: %s", exitCode, stderr.String()))
+				return ExecResult{}, fmt.Errorf("docker: exec %v: %w", args, runErr)
 			}
-		}(taskID)
+		}
 
 		return ExecResult{
 			Command:  fullCommand,
-			Stdout:   fmt.Sprintf("Command started in background with task ID: %s. Use 'docker ps' to check status.", taskID),
-			ExitCode: 0,
-			Duration: 0,
+			Stdout:   stdout.String(),
+			Stderr:   stderr.String(),
+			ExitCode: exitCode,
+			Duration: elapsed,
 		}, nil
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, dockerBin, args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	taskID := tasks.Register(&core.TaskRecord{
+		Tool:  "docker_command_tool",
+		Input: fullCommand,
+	})
 
-	start := time.Now()
-	runErr := cmd.Run()
-	elapsed := time.Since(start)
+	go func(id string) {
+		var stdout, stderr bytes.Buffer
+		cmd := exec.CommandContext(ctx, dockerBin, args...)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 
-	exitCode := 0
-	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
+		start := time.Now()
+		runErr := cmd.Run()
+		elapsed := time.Since(start)
+
+		exitCode := 0
+		if runErr != nil {
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			}
+		}
+
+		res := ExecResult{
+			Command:  fullCommand,
+			Stdout:   stdout.String(),
+			Stderr:   stderr.String(),
+			ExitCode: exitCode,
+			Duration: elapsed,
+		}
+
+		resJSON, _ := json.Marshal(res)
+
+		if exitCode == 0 {
+			tasks.Update(id, core.TaskSucceeded, string(resJSON), "")
 		} else {
-			return ExecResult{}, fmt.Errorf("docker: exec %v: %w", args, runErr)
+			tasks.Update(id, core.TaskFailed, string(resJSON), fmt.Sprintf("Command failed with exit code %d. Error: %s", exitCode, stderr.String()))
+		}
+	}(taskID)
+
+	rec, err := tasks.Wait(ctx, taskID)
+	if err != nil {
+		return ExecResult{}, err
+	}
+
+	var res ExecResult
+	if rec.Result != "" {
+		if err := json.Unmarshal([]byte(rec.Result), &res); err == nil {
+			return res, nil
 		}
 	}
 
 	return ExecResult{
 		Command:  fullCommand,
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		ExitCode: exitCode,
-		Duration: elapsed,
+		Stdout:   rec.Result,
+		Stderr:   rec.Error,
+		ExitCode: 0,
 	}, nil
 }
 

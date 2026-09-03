@@ -132,11 +132,16 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			break
 		}
 		step++
-		if step != 0 {
-			if err := SleepCancellable(ctx, 3*time.Second); err != nil { // waits 3 sec on purpose if not first call
-				return err
+		
+		if gal.SessionContext.Tasks != nil {
+			completedTasks := gal.SessionContext.Tasks.PullCompleted()
+			for _, task := range completedTasks {
+				key := fmt.Sprintf("%s (%s)", task.ID, task.Input)
+				val := fmt.Sprintf("Status: %s | Object ID: %s\nResult: %s\nError: %s", task.Status, task.DockerObjectID, task.Result, task.Error)
+				userInput.ToolsExecuted[key] = val
 			}
 		}
+
 		aiStep, err := gal.Flow.Run(ctx, userInput)
 		if err != nil {
 			if strings.Contains(err.Error(), "503") {

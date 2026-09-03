@@ -19,6 +19,9 @@ var availableTools = map[string]func() core.Tool{
 	"docker_command_tool": func() core.Tool {
 		return tools.NewDockerCommandsTool(nil)
 	},
+	"task_status_tool": func() core.Tool {
+		return tools.NewTaskStatusTool(nil)
+	},
 }
 
 func initalizeRegistery(g *genkit.Genkit, toolRegistry core.ToolRegistry, toolsToRegister []string) error {
@@ -46,6 +49,9 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	for _, tool := range toolRegistry.List() {
 		if dt, ok := tool.(*tools.DockerCommandsTool); ok {
 			dt.Tasks = taskRegistry
+		}
+		if st, ok := tool.(*tools.TaskStatusTool); ok {
+			st.Tasks = taskRegistry
 		}
 	}
 
