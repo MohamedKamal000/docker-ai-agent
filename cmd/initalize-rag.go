@@ -14,7 +14,7 @@ var initalizeRag = &cobra.Command{
 	Use:     "initalizeRag",
 	Aliases: []string{"ir"},
 	Short:   "initalizes different depenencies for the rag to work by installing the docker docs then chunking it and embedding it, then store it to an embedded database",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 
@@ -31,5 +31,5 @@ var initalizeRag = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(containerizeCmd)
+	rootCmd.AddCommand(initalizeRag)
 }
