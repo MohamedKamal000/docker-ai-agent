@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	models "docker-cli/internal/rag/models"
+	models "docker-cli/internal/models"
 	storage "docker-cli/internal/rag/storage"
 
 	"github.com/schollz/progressbar/v3"
@@ -75,8 +75,8 @@ func work(ctx context.Context, chunk <-chan models.Chunk, embedder Embedder,
 	}
 }
 
-func (wr *WorkerRunner) RunWorkers(ctx context.Context, ch <-chan models.Chunk, workersNumber int, batchSize int) error {
-	chunksQueue := make(chan models.Chunk, batchSize)
+func (wr *WorkerRunner) RunWorkers(ctx context.Context, ch <-chan models.Chunk, workersNumber int, queueSize int) error {
+	chunksQueue := make(chan models.Chunk, queueSize)
 
 	g, ctx := errgroup.WithContext(ctx)
 	b := GetEmbeddingBar()

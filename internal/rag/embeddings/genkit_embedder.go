@@ -3,7 +3,7 @@ package rag
 import (
 	"context"
 
-	models "docker-cli/internal/rag/models"
+	models "docker-cli/internal/models"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
@@ -48,4 +48,17 @@ func (ge *GenkitEmbedder) EmbedBatch(ctx context.Context, chunks []models.Chunk)
 	}
 
 	return result, nil
+}
+
+func (ge *GenkitEmbedder) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
+	resp, err := genkit.Embed(ctx, ge.g, ai.WithEmbedderName(ge.modelName), ai.WithTextDocs(text))
+	if err != nil {
+		return nil, err
+	}
+	embeddings := resp.Embeddings[0].Embedding
+	return embeddings, nil
+}
+
+func (ge *GenkitEmbedder) Close() {
+	// left this way so it applies to the interface
 }

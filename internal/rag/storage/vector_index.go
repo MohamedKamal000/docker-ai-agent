@@ -6,7 +6,7 @@ import (
 
 	"github.com/philippgille/chromem-go"
 
-	models "docker-cli/internal/rag/models"
+	models "docker-cli/internal/models"
 )
 
 /*

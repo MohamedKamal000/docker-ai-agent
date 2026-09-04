@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	"docker-cli/internal/core"
 	"docker-cli/internal/docker"
+	"docker-cli/internal/rag"
 	"docker-cli/internal/tools"
-	"fmt"
 
 	"github.com/firebase/genkit/go/genkit"
 )
@@ -32,7 +34,15 @@ func initalizeRegistery(g *genkit.Genkit, toolRegistry core.ToolRegistry, toolsT
 	return nil
 }
 
-func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []string) (*Agent, error) {
+type AgentOptions func(*Agent)
+
+func WithRagOption(retreiver *rag.Retriever) AgentOptions {
+	return func(agent *Agent) {
+		agent.SessionContext.Search = retreiver.SearchUserReqeust
+	}
+}
+
+func NewAgent(config core.AppConfig, ctx context.Context, toolsToRegister []string, options ...AgentOptions) (*Agent, error) {
 	genkitClient := core.NewGenkitClient(config)
 	chatSession := core.NewStaticMemoryStore()
 	toolRegistry := core.NewGenkitToolRegistry()
@@ -42,7 +52,8 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	}
 	sessionContext := &core.LoopContext{
 		Memory: chatSession,
-		Tools:  toolRegistry}
+		Tools:  toolRegistry,
+	}
 	err = docker.Init()
 	if err != nil {
 		return nil, err
@@ -54,7 +65,6 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	}
 
 	systemPrompt, err := core.ParsePrompt(core.System_Prompt_Template, dockerContext)
-
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +72,14 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	classifier := core.NewIntentClassifier(*genkitClient)
 	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt, classifier)
 
-	return &Agent{
+	agent := Agent{
 		AgentLoop:      agentLoop,
 		SessionContext: sessionContext,
-	}, nil
+	}
+
+	for _, o := range options {
+		o(&agent)
+	}
+
+	return &agent, nil
 }

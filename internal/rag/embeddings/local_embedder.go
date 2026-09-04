@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	models "docker-cli/internal/rag/models"
+	models "docker-cli/internal/models"
 
 	"github.com/knights-analytics/hugot"
 	"github.com/knights-analytics/hugot/options"

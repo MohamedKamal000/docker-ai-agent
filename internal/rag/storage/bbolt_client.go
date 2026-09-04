@@ -8,7 +8,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	models "docker-cli/internal/rag/models"
+	models "docker-cli/internal/models"
 )
 
 type BoltClient struct {

@@ -28,7 +28,7 @@ type MockAgentLoop struct {
 	Delay time.Duration
 }
 
-func NewMockAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []string) *Agent {
+func NewMockAgent(config core.AppConfig, ctx context.Context, toolsToRegister []string) *Agent {
 	chatSession := core.NewStaticMemoryStore()
 
 	agentLoop := &MockAgentLoop{Delay: 1 * time.Second}

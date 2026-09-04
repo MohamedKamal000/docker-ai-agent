@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"os"
 
 	"docker-cli/internal/models"
 
@@ -19,6 +20,8 @@ func NewDockerAgentFlow(client GenkitClient, registry ToolRegistry, systemPrompt
 	}
 	agentFlow := genkit.DefineFlow[models.UserInputPrompt, *ai.ModelResponse](client.G, "DockerAgent", func(ctx context.Context, input models.UserInputPrompt) (*ai.ModelResponse, error) {
 		parsedPrompt, err := ParsePrompt(User_Prompt_Template, input)
+
+		os.WriteFile("test.txt", []byte(parsedPrompt), 0o644)
 		if err != nil {
 			return nil, err
 		}

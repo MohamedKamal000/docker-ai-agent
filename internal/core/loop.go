@@ -17,9 +17,13 @@ import (
 type AgentLoop interface {
 	Run(ctx context.Context, userGoal string, comm *AgentCommunication) error
 }
+
+type RetreiverSearch func(userRequest string) ([]models.SearchResult, error)
+
 type LoopContext struct {
 	Memory MemoryStore
 	Tools  ToolRegistry
+	Search RetreiverSearch
 }
 
 type GenkitAgentLoop struct {
@@ -175,9 +179,23 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 }
 
 func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt string, comm *AgentCommunication) error {
+	ragSearch := gal.SessionContext.Search
+	if ragSearch != nil {
+		result, err := ragSearch(prompt)
+		if err != nil {
+			return err
+		}
+		prompt, err = ParsePrompt(GENERAL_QUESTION_USER_PROMPT, map[string]any{
+			"Goal":      prompt,
+			"RagResult": result,
+		})
+		if err != nil {
+			return err
+		}
+	}
 	resp, err := genkit.Generate(ctx, gal.Client.G,
 		ai.WithModelName(gal.Client.Config.ModelName),
-		ai.WithSystem("You are a Docker expert. Answer the user's question clearly and concisely. No tools."),
+		ai.WithSystem(GENERAL_QUESTION_SYSTEM_PROMPT),
 		ai.WithPrompt(prompt))
 	if err != nil {
 		return err
