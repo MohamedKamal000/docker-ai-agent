@@ -3,7 +3,7 @@ package rag
 import (
 	"context"
 
-	models "docker-cli/internal/rag/models"
+	models "docker-cli/internal/models"
 	rag "docker-cli/internal/rag/storage"
 )
 

@@ -65,7 +65,7 @@ var providerPlugins = map[LLMProvider]func(string) genkit.GenkitOption{
 	},
 }
 
-func providerToGenkitPlugin(config ModelConfig) genkit.GenkitOption {
+func providerToGenkitPlugin(config AppConfig) genkit.GenkitOption {
 	provider := stringToProviderInfo(config.Provider).Provider
 	providerFunc, ok := providerPlugins[provider]
 	if !ok { // likely not possible since we check this already in the config parsing step
@@ -81,10 +81,10 @@ func providerToGenkitPlugin(config ModelConfig) genkit.GenkitOption {
 
 type GenkitClient struct {
 	G      *genkit.Genkit
-	Config ModelConfig
+	Config AppConfig
 }
 
-func NewGenkitClient(config ModelConfig) *GenkitClient {
+func NewGenkitClient(config AppConfig) *GenkitClient {
 	g := genkit.Init(context.Background(), providerToGenkitPlugin(config),
 		genkit.WithDefaultModel(config.ModelName))
 	return &GenkitClient{

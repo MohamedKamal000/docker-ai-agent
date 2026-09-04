@@ -37,7 +37,7 @@ func NewDockerAgentFlow(client GenkitClient, registry ToolRegistry, systemPrompt
 type DockerQueryFlow = *core.Flow[DockerQueryInput, *ai.ModelResponse, struct{}]
 
 type DockerQueryInput struct {
-	Goal    string              `json:"goal"`
+	Goal    string                `json:"goal"`
 	History []models.HistoryEntry `json:"history"`
 }
 

@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	models "docker-cli/internal/rag/models"
+	"docker-cli/internal/models"
 
 	"github.com/tmc/langchaingo/textsplitter"
 )

@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"path/filepath"
 
-	models "docker-cli/internal/rag/models"
+	"docker-cli/internal/core"
+	models "docker-cli/internal/models"
 
 	pipeLine "docker-cli/internal/rag/data_pipeline"
 	embedder "docker-cli/internal/rag/embeddings"
 
 	storage "docker-cli/internal/rag/storage"
+
+	"github.com/firebase/genkit/go/genkit"
+	"github.com/firebase/genkit/go/plugins/googlegenai"
 )
 
 /*
@@ -58,55 +62,61 @@ func downloadDependency() (string, error) {
 	return GetDependencyPath()
 }
 
-// TODO: extend the app config and pass it here, include the docs and model fetching steps
-func InitalizeRag() error {
+func getCorrectEmbedder(ctx context.Context, rc *core.RAGConfig, path string) (Embedder, error) {
+	if rc.EmbeddingType == core.EmbeddingLocal {
+		return embedder.NewLocalEmbedder(ctx, filepath.Join(path, "local_model"), rc.InferenceType == core.GPU)
+	} else {
+		return embedder.NewGenkitEmbedder(ctx,
+			genkit.WithPlugins(&googlegenai.GoogleAI{APIKey: rc.EmbeddingApiKey}),
+			rc.ModelName), nil
+	}
+}
+
+func InitalizeRag(ctx context.Context, config core.AppConfig) error {
+	rc := config.RagConfig
 	path, err := downloadDependency()
 	if err != nil {
 		return err
 	}
 
 	ch := make(chan models.Chunk, 64)
-	generator := pipeLine.NewChunkGenerator(256, 50, filepath.Join(path, "content"))
+	generator := pipeLine.NewChunkGenerator(uint(rc.ChunkSize), uint(rc.OverlapSize), filepath.Join(path, "content"))
 
-	ctx := context.Background()
 	client, err := storage.NewBoltClient(path)
 	if err != nil {
 		return err
 	}
 
-	embedder, err := embedder.NewLocalEmbedder(ctx, filepath.Join(path, "local_model"), true)
+	em, err := getCorrectEmbedder(ctx, rc, path)
 	if err != nil {
 		return err
 	}
 
-	defer embedder.Close()
-	runner := NewWorkerRunner(embedder, client)
+	defer em.Close()
+	runner := NewWorkerRunner(em, client)
 
 	go generator.ProduceChunks(ch)
-	const batchSize = 4
-	const numberOfWorkers = 4
 
-	err = runner.RunWorkers(ctx, ch, numberOfWorkers, batchSize)
+	err = runner.RunWorkers(ctx, ch, rc.WorkersNumber, rc.WorkersNumber*2)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// TODO: extend the app config and pass it here, do nessesry checks before calling actual function
-func NewRetriever() (*Retriever, error) {
+// TODO: find a way to check if the rag is initalized in the first place
+func NewRetriever(ctx context.Context, config core.AppConfig) (*Retriever, error) {
 	path, err := GetDependencyPath()
 	if err != nil {
 		return nil, err
 	}
 
-	ctx := context.Background()
 	client, err := storage.NewBoltClient(path)
 	if err != nil {
 		return nil, err
 	}
 
-	embedder, err := embedder.NewLocalEmbedder(ctx, filepath.Join(path, "local_model"), false)
+	em, err := getCorrectEmbedder(ctx, config.RagConfig, path)
 
-	return newRetriever(ctx, embedder, client)
+	return newRetriever(ctx, em, client)
 }
