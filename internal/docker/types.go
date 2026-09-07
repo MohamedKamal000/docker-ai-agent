@@ -44,13 +44,3 @@ type NetworkSummary struct {
 	Driver string `json:"driver"`
 	Scope  string `json:"scope"`
 }
-
-type ExecResult struct {
-	Command  string
-	Stdout   string
-	Stderr   string
-	ExitCode int
-	Duration time.Duration
-}
-
-func (r ExecResult) Succeeded() bool { return r.ExitCode == 0 }

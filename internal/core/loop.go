@@ -163,7 +163,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			break
 		}
 
-		toolsResult, err := toolExec.ExecuteGenkitTool(ctx, aiStep, comm)
+		_, err = toolExec.ExecuteGenkitTool(ctx, aiStep, comm)
 		if err != nil {
 			return err
 		}
@@ -172,8 +172,11 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			comm.ToUser <- NewThought(agentOutput)
 		}
 		userInput.CurrentGoalProgress = append(userInput.CurrentGoalProgress, agentOutput)
-		for k, v := range toolsResult {
-			userInput.ToolsExecuted[k] = v
+		if gal.SessionContext.Tasks != nil {
+			for _, task := range gal.SessionContext.Tasks.PullCompleted() {
+				key := fmt.Sprintf("%s (%s)", task.ID, task.Input)
+				userInput.ToolsExecuted[key] = formatTaskResult(task)
+			}
 		}
 	}
 
@@ -196,4 +199,22 @@ func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt st
 		IsStructured: true,
 	})
 	return nil
+}
+
+func formatTaskResult(t *TaskRecord) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Status: %s\n", t.Status)
+	if t.Error != "" {
+		fmt.Fprintf(&b, "Error: %s\n", t.Error)
+	}
+	if t.Result != nil {
+		fmt.Fprintf(&b, "ExitCode: %d\n", t.Result.ExitCode)
+		if t.Result.Stdout != "" {
+			fmt.Fprintf(&b, "Stdout: %s\n", t.Result.Stdout)
+		}
+		if t.Result.Stderr != "" {
+			fmt.Fprintf(&b, "Stderr: %s\n", t.Result.Stderr)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
