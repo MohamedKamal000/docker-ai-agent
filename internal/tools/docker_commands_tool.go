@@ -4,7 +4,6 @@ import (
 	"context"
 	"docker-cli/internal/core"
 	"docker-cli/internal/docker"
-	"encoding/json"
 	"fmt"
 )
 
@@ -44,18 +43,19 @@ Use this tool only when direct interaction with Docker is required.`
 func (d *DockerCommandsTool) Call(ctx context.Context, input any) (string, error) {
 	m, ok := input.(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("failed to cast input to docker Command input")
+		return "", fmt.Errorf("failed to cast input to docker command input")
 	}
-	cmd := m["command"].(string)
-	res, err := docker.Exec(ctx, cmd, d.Tasks)
-	if err != nil {
+
+	cmd, ok := m["command"].(string)
+	if !ok {
+		return "", fmt.Errorf("command must be a string")
+	}
+
+	if err := docker.Exec(ctx, cmd, d.Tasks); err != nil {
 		return "", err
 	}
-	b, err := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+
+	return "Docker command started in background. Result will be available through the task registry.", nil
 }
 
 func (d *DockerCommandsTool) GetInputSchema() map[string]any {

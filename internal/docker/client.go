@@ -228,18 +228,19 @@ func ParseCommands(block string) []string {
 	return out
 }
 
-func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (*models.ExecResult, error) {
+func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) error {
 	must()
+
 	args, err := shellSplit(command)
 	if err != nil {
-		return nil, fmt.Errorf("docker: cannot parse %q: %w", command, err)
+		return fmt.Errorf("docker: cannot parse %q: %w", command, err)
 	}
 
 	if len(args) > 0 && args[0] == "docker" {
 		args = args[1:]
 	}
 	if len(args) == 0 {
-		return nil, fmt.Errorf("docker: empty command")
+		return fmt.Errorf("docker: empty command")
 	}
 
 	fullCommand := dockerBin + " " + strings.Join(args, " ")
@@ -251,9 +252,11 @@ func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (*model
 		})
 
 		var stdout, stderr bytes.Buffer
+
 		cmd := exec.CommandContext(ctx, dockerBin, args...)
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
+
 		start := time.Now()
 		runErr := cmd.Run()
 		elapsed := time.Since(start)
@@ -279,31 +282,33 @@ func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (*model
 		case exitCode == 0:
 			tasks.UpdateComplete(taskID, core.TaskSucceeded, res, "")
 		default:
-			tasks.UpdateComplete(taskID, core.TaskFailed, res, fmt.Sprintf("exit %d: %s", exitCode, stderr.String()))
+			tasks.UpdateComplete(
+				taskID,
+				core.TaskFailed,
+				res,
+				fmt.Sprintf("exit %d: %s", exitCode, stderr.String()),
+			)
 		}
 	}()
 
-	return &models.ExecResult{
-		Command:  fullCommand,
-		Stdout:   "Command started in background. Result will be available on the next loop iteration.",
-		ExitCode: 0,
-	}, nil
+	return nil
 }
 
-func ExecMany(ctx context.Context, commands []string, continueOnError bool, tasks *core.TaskRegistry) ([]*models.ExecResult, error) {
-	results := make([]*models.ExecResult, 0, len(commands))
+func ExecMany(
+	ctx context.Context,
+	commands []string,
+	continueOnError bool,
+	tasks *core.TaskRegistry,
+) error {
 	for _, cmd := range commands {
-		result, err := Exec(ctx, cmd, tasks)
-		if err != nil {
-			return results, err
-		}
-		results = append(results, result)
-		if !result.Succeeded() && !continueOnError {
-			return results, fmt.Errorf("docker: command exited %d: %s",
-				result.ExitCode, strings.TrimSpace(result.Stderr))
+		if err := Exec(ctx, cmd, tasks); err != nil {
+			if !continueOnError {
+				return err
+			}
 		}
 	}
-	return results, nil
+
+	return nil
 }
 
 func FormatContextPrompt(dc *Context) string {
