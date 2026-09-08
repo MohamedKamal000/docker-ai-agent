@@ -2,10 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	"docker-cli/internal/core"
 	"docker-cli/internal/docker"
 	"docker-cli/internal/tools"
-	"fmt"
 
 	"github.com/firebase/genkit/go/genkit"
 )
@@ -15,19 +16,22 @@ type Agent struct {
 	SessionContext *core.LoopContext
 }
 
-var availableTools = map[string]func() core.Tool{
-	"docker_command_tool": func() core.Tool {
-		return tools.NewDockerCommandsTool()
+var availableTools = map[string]func(*core.TaskRegistry) core.Tool{
+	"docker_command_tool": func(tasks *core.TaskRegistry) core.Tool {
+		return tools.NewDockerCommandsTool(tasks)
+	},
+	"task_status_tool": func(tasks *core.TaskRegistry) core.Tool {
+		return tools.NewTaskStatusTool(tasks)
 	},
 }
 
-func initalizeRegistery(g *genkit.Genkit, toolRegistry core.ToolRegistry, toolsToRegister []string) error {
+func initalizeRegistery(g *genkit.Genkit, toolRegistry core.ToolRegistry, toolsToRegister []string, taskRegistry *core.TaskRegistry) error {
 	for _, toolName := range toolsToRegister {
 		t, ok := availableTools[toolName]
 		if !ok {
 			return fmt.Errorf("tool Name %s not found", toolName)
 		}
-		toolRegistry.Register(t(), g)
+		toolRegistry.Register(t(taskRegistry), g)
 	}
 	return nil
 }
@@ -36,13 +40,18 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	genkitClient := core.NewGenkitClient(config)
 	chatSession := core.NewStaticMemoryStore()
 	toolRegistry := core.NewGenkitToolRegistry()
-	err := initalizeRegistery(genkitClient.G, toolRegistry, toolsToRegister)
+	taskRegistry := core.NewTaskRegistry()
+
+	err := initalizeRegistery(genkitClient.G, toolRegistry, toolsToRegister, taskRegistry)
 	if err != nil {
 		return nil, err
 	}
+
 	sessionContext := &core.LoopContext{
 		Memory: chatSession,
-		Tools:  toolRegistry}
+		Tools:  toolRegistry,
+		Tasks:  taskRegistry,
+	}
 	err = docker.Init()
 	if err != nil {
 		return nil, err
@@ -54,7 +63,6 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	}
 
 	systemPrompt, err := core.ParsePrompt(core.System_Prompt_Template, dockerContext)
-
 	if err != nil {
 		return nil, err
 	}

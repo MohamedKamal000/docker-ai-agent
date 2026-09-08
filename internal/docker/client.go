@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"docker-cli/internal/core"
+	"docker-cli/internal/models"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -215,7 +218,7 @@ func IsDestructive(command string) bool {
 
 func ParseCommands(block string) []string {
 	var out []string
-	for _, line := range strings.Split(block, "\n") {
+	for line := range strings.SplitSeq(block, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -225,61 +228,89 @@ func ParseCommands(block string) []string {
 	return out
 }
 
-func Exec(ctx context.Context, command string) (ExecResult, error) {
+func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (string, error) {
 	must()
+
 	args, err := shellSplit(command)
 	if err != nil {
-		return ExecResult{}, fmt.Errorf("docker: cannot parse %q: %w", command, err)
+		return "", fmt.Errorf("docker: cannot parse %q: %w", command, err)
 	}
 
 	if len(args) > 0 && args[0] == "docker" {
 		args = args[1:]
 	}
 	if len(args) == 0 {
-		return ExecResult{}, fmt.Errorf("docker: empty command")
+		return "", fmt.Errorf("docker: empty command")
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, dockerBin, args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	fullCommand := dockerBin + " " + strings.Join(args, " ")
 
-	start := time.Now()
-	runErr := cmd.Run()
-	elapsed := time.Since(start)
+	taskID := tasks.Register(core.NewTaskRecord(
+		"docker_command_tool",
+		fullCommand,
+	))
 
-	exitCode := 0
-	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			return ExecResult{}, fmt.Errorf("docker: exec %v: %w", args, runErr)
+	go func() {
+		var stdout, stderr bytes.Buffer
+
+		cmd := exec.CommandContext(ctx, dockerBin, args...)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		start := time.Now()
+		runErr := cmd.Run()
+		elapsed := time.Since(start)
+
+		exitCode := 0
+		if runErr != nil {
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			}
 		}
-	}
 
-	return ExecResult{
-		Command:  dockerBin + " " + strings.Join(args, " "),
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		ExitCode: exitCode,
-		Duration: elapsed,
-	}, nil
+		res := &models.ExecResult{
+			Command:  fullCommand,
+			Stdout:   stdout.String(),
+			Stderr:   stderr.String(),
+			ExitCode: exitCode,
+			Duration: elapsed,
+		}
+
+		switch {
+		case ctx.Err() != nil:
+			tasks.UpdateComplete(taskID, core.TaskCanceled, res, ctx.Err().Error())
+		case exitCode == 0:
+			tasks.UpdateComplete(taskID, core.TaskSucceeded, res, "")
+		default:
+			tasks.UpdateComplete(
+				taskID,
+				core.TaskFailed,
+				res,
+				fmt.Sprintf("exit %d: %s", exitCode, stderr.String()),
+			)
+		}
+	}()
+
+	return taskID, nil
 }
 
-func ExecMany(ctx context.Context, commands []string, continueOnError bool) ([]ExecResult, error) {
-	results := make([]ExecResult, 0, len(commands))
+func ExecMany(
+	ctx context.Context,
+	commands []string,
+	continueOnError bool,
+	tasks *core.TaskRegistry,
+) ([]string, error) {
+	result := make([]string, 0)
 	for _, cmd := range commands {
-		result, err := Exec(ctx, cmd)
-		if err != nil {
-			return results, err
-		}
-		results = append(results, result)
-		if !result.Succeeded() && !continueOnError {
-			return results, fmt.Errorf("docker: command exited %d: %s",
-				result.ExitCode, strings.TrimSpace(result.Stderr))
+		if id, err := Exec(ctx, cmd, tasks); err != nil {
+			if !continueOnError {
+				return []string{}, err
+			}
+			result = append(result, id)
 		}
 	}
-	return results, nil
+
+	return result, nil
 }
 
 func FormatContextPrompt(dc *Context) string {
@@ -287,44 +318,47 @@ func FormatContextPrompt(dc *Context) string {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("=== Docker Environment (captured %s) ===\n",
-		dc.CapturedAt.Format(time.RFC3339)))
+	fmt.Fprintf(&sb, "=== Docker Environment (captured %s) ===\n",
+		dc.CapturedAt.Format(time.RFC3339))
 
-	sb.WriteString(fmt.Sprintf("\n## Containers (%d)\n", len(dc.Containers)))
+	fmt.Fprintf(&sb, "\n## Containers (%d)\n", len(dc.Containers))
 	for _, c := range dc.Containers {
 		ports := formatPorts(c.Ports)
 		if ports != "" {
 			ports = " ports=[" + ports + "]"
 		}
-		sb.WriteString(fmt.Sprintf("  %-20s  image=%-30s  state=%s%s\n",
-			c.Name, c.Image, c.State, ports))
+		fmt.Fprintf(&sb, "  %-20s  image=%-30s  state=%s%s\n",
+			c.Name, c.Image, c.State, ports)
 	}
 
-	sb.WriteString(fmt.Sprintf("\n## Images (%d)\n", len(dc.Images)))
+	fmt.Fprintf(&sb, "\n## Images (%d)\n", len(dc.Images))
 	for _, img := range dc.Images {
 		tags := strings.Join(img.Tags, ", ")
 		if tags == "" {
 			tags = "<untagged>"
 		}
-		sb.WriteString(fmt.Sprintf("  %-40s  size=%s\n", tags, formatBytes(img.Size)))
+		fmt.Fprintf(&sb, "  %-40s  size=%s\n", tags, formatBytes(img.Size))
 	}
 
-	sb.WriteString(fmt.Sprintf("\n## Volumes (%d)\n", len(dc.Volumes)))
+	fmt.Fprintf(&sb, "\n## Volumes (%d)\n", len(dc.Volumes))
 	for _, v := range dc.Volumes {
-		sb.WriteString(fmt.Sprintf("  %s  driver=%s\n", v.Name, v.Driver))
+		fmt.Fprintf(&sb, "  %s  driver=%s\n", v.Name, v.Driver)
 	}
 
-	sb.WriteString(fmt.Sprintf("\n## Networks (%d)\n", len(dc.Networks)))
+	fmt.Fprintf(&sb, "\n## Networks (%d)\n", len(dc.Networks))
 	for _, n := range dc.Networks {
-		sb.WriteString(fmt.Sprintf("  %-20s  driver=%-10s  scope=%s\n", n.Name, n.Driver, n.Scope))
+		fmt.Fprintf(&sb, "  %-20s  driver=%-10s  scope=%s\n",
+			n.Name, n.Driver, n.Scope)
 	}
 
 	sb.WriteString("\n=== End Docker Environment ===\n")
 	return sb.String()
 }
 
-type listOptions struct{ all bool }
-type ListOption func(*listOptions)
+type (
+	listOptions struct{ all bool }
+	ListOption  func(*listOptions)
+)
 
 func WithAll() ListOption {
 	return func(o *listOptions) { o.all = true }
