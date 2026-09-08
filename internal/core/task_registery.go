@@ -19,16 +19,27 @@ const (
 )
 
 type TaskRecord struct {
-	ID             string             `json:"id"`
-	Tool           string             `json:"tool"`
-	Input          string             `json:"input"`
-	Status         TaskStatus         `json:"status"`
-	StartedAt      time.Time          `json:"started_at"`
-	FinishedAt     time.Time          `json:"finished_at"`
-	Reported       bool               `json:"reported"`
-	Result         *models.ExecResult `json:"result,omitempty"`
-	Error          string             `json:"error,omitempty"`
-	DockerObjectID string             `json:"docker_object_id,omitempty"`
+	ID         string             `json:"id"`
+	Tool       string             `json:"tool"`
+	Input      string             `json:"input"`
+	Status     TaskStatus         `json:"status"`
+	StartedAt  time.Time          `json:"started_at"`
+	FinishedAt time.Time          `json:"finished_at"`
+	Reported   bool               `json:"reported"`
+	Result     *models.ExecResult `json:"result,omitempty"`
+	Error      string             `json:"error,omitempty"`
+}
+
+func NewTaskRecord(tool string, command string) *TaskRecord {
+	t := TaskRecord{
+		Tool:  tool,
+		Input: command,
+	}
+
+	t.ID = fmt.Sprintf("task-%s-%d", command, time.Now().Unix())
+	t.Status = TaskRunning
+	t.StartedAt = time.Now()
+	return &t
 }
 
 type TaskRegistry struct {
@@ -43,10 +54,6 @@ func NewTaskRegistry() *TaskRegistry {
 func (r *TaskRegistry) Register(rec *TaskRecord) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	rec.ID = fmt.Sprintf("task-%d", time.Now().UnixNano())
-	rec.Status = TaskRunning
-	rec.StartedAt = time.Now()
 
 	r.tasks[rec.ID] = rec
 	return rec.ID
@@ -74,17 +81,35 @@ func (r *TaskRegistry) UpdateComplete(id string, status TaskStatus, result *mode
 	}
 }
 
-func (r *TaskRegistry) PullCompleted() []*TaskRecord {
+func (r *TaskRegistry) pullWithCondition(isSatisfied func(t *TaskRecord) bool) []*TaskRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*TaskRecord
 	for _, t := range r.tasks {
-		if !t.Reported && (t.Status == TaskSucceeded || t.Status == TaskFailed || t.Status == TaskCanceled) {
-			t.Reported = true
+		if isSatisfied(t) {
 			out = append(out, t)
 		}
 	}
 	return out
+}
+
+func (r *TaskRegistry) PullRunning() []*TaskRecord {
+	return r.pullWithCondition(func(t *TaskRecord) bool {
+		if t.Status == TaskRunning {
+			return true
+		}
+		return false
+	})
+}
+
+func (r *TaskRegistry) PullCompleted() []*TaskRecord {
+	return r.pullWithCondition(func(t *TaskRecord) bool {
+		if !t.Reported && (t.Status == TaskSucceeded || t.Status == TaskFailed || t.Status == TaskCanceled) {
+			t.Reported = true
+			return true
+		}
+		return false
+	})
 }
 
 func (r *TaskRegistry) List() []*TaskRecord {

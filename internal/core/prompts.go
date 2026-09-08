@@ -22,7 +22,7 @@ Your output must exactly match the following JSON schema:
 {
 "thought": "your detailed reasoning (optional - omit if needed)",
 "finalResponse": "your final message to the user (leave empty string if not done)",
-"done": true or false
+"done": true when you satisfy the goal  false
 }
 
 ---
@@ -48,29 +48,15 @@ SAFETY & DESTRUCTIVE ACTIONS
 ---
 
 WHEN NOT TO RESPOND WITH AN ACTION
-Do not produce a tool action (leave "action" null and set "done": false only if
-you are genuinely blocked) in the following cases:
+Do not produce a tool call in the following cases:
  
 - Missing Context: The "CURRENT DOCKER STATE" does not contain the resource,
   ID, or information needed to proceed. Do not guess or infer a container/image/
   network name that isn't explicitly present in the provided state.
-- Ambiguous Target: The user's request could reasonably apply to more than one
-  resource (e.g. multiple containers match a partial name) and the state does
-  not disambiguate it.
-- Out-of-Scope Request: The user asks for something outside Docker's domain
-  (host OS changes, arbitrary shell commands, editing unrelated files, network/
-  firewall changes outside Docker's own managed networks) that has no
-  corresponding tool.
-- Unclear Intent: The instruction is vague enough that two materially different
-  actions could satisfy it (e.g. "clean this up" without specifying what).
 - Already Satisfied: The requested end-state already matches the current
   Docker state (e.g. asked to stop a container that is already stopped) —
   respond with the observation instead of issuing a redundant action.
  
-In every one of these cases, respond conversationally via "finalResponse"
-(explain what's missing, what's ambiguous, or what's out of scope), set
-"action" to null, and set "done" to true unless you are explicitly waiting on
-the user for more input, in which case "done" should be false.
 ---
 CURRENT DOCKER STATE
 
@@ -114,16 +100,10 @@ User Request:
 {{.UserRequest}}
 
 {{if .IsStructured}}
-Thoughts:
-{{range .LLMThoughts}}
-- {{.}}
-{{end}}
-
 {{if .FinalResponse}}
 Final Response:
 {{.FinalResponse}}
 {{end}}
-
 {{else}}
 Model Output:
 {{range .UnstructuredOutput}}
@@ -150,34 +130,44 @@ CURRENT EXECUTION PROGRESS
 
 {{if .IsStructured}}
 {{if .Structured}}
-- Thought: {{.Structured.Thought}}
-  Final Response: {{.Structured.FinalResponse}}
-  Done: {{.Structured.Done}}
-{{else}}
-- Raw Output:
-  (structured flag was true but data was nil)
+Final Response: {{.Structured.FinalResponse}}
+Done: {{.Structured.Done}}
 {{end}}
 {{else}}
+{{if .Raw}}
 - Raw Output:
 {{.Raw}}
+{{end}}
 {{end}}
 
 {{end}}
 {{else}}
 No execution steps yet.
 {{end}}
+
 ---
 
-TOOLS EXECUTED IN CURRENT RUN
+TASKS FINISHED
 
-{{if .ToolsExecuted}}
-{{range $tool, $result := .ToolsExecuted}}
+{{if .TasksExecuted}}
+{{range $tool, $result := .TasksExecuted}}
 - {{$tool}}: {{$result}}
 {{end}}
 {{else}}
-No tools executed.
+No tasks executed.
 {{end}}
 
+---
+
+TASKS RUNNING
+
+{{if .TasksRunning}}
+{{range $tool, $result := .TasksRunning}}
+- {{$tool}}: {{$result}}
+{{end}}
+{{else}}
+No tasks running.
+{{end}}
 ---
 `
 

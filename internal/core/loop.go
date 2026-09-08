@@ -119,7 +119,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		Goal:                userGoal,
 		CurrentGoalProgress: make([]models.AgentResult, 0),
 		PreviousChat:        previousChat,
-		ToolsExecuted:       map[string]string{},
+		TasksExecuted:       map[string]string{},
 	}
 
 	for {
@@ -132,14 +132,23 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			break
 		}
 		step++
-		
+
 		if gal.SessionContext.Tasks != nil {
 			completedTasks := gal.SessionContext.Tasks.PullCompleted()
 			for _, task := range completedTasks {
-				key := fmt.Sprintf("%s (%s)", task.ID, task.Input)
-				val := fmt.Sprintf("Status: %s | Object ID: %s\nResult: %s\nError: %s", task.Status, task.DockerObjectID, task.Result, task.Error)
-				userInput.ToolsExecuted[key] = val
+				key := fmt.Sprintf("taskId: %s)", task.ID)
+				val := fmt.Sprintf("Status: %s | \nResult: %s\nError: %s", task.Status, task.Result, task.Error)
+				userInput.TasksExecuted[key] = val
 			}
+
+			currentTasksRunning := make(map[string]string, 0)
+			runningTasks := gal.SessionContext.Tasks.PullRunning()
+			for _, task := range runningTasks {
+				key := fmt.Sprintf("taskId: %s)", task.ID)
+				val := fmt.Sprintf("Command: %s, Status: %s", task.Input, task.Status)
+				currentTasksRunning[key] = val
+			}
+			userInput.TasksRunning = currentTasksRunning
 		}
 
 		aiStep, err := gal.Flow.Run(ctx, userInput)
@@ -159,7 +168,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		agentOutput := extractResult(aiStep)
 		if agentOutput.IsStructured && agentOutput.Structured.Done {
 			comm.ToUser <- NewFinal(agentOutput)
-			err = gal.SessionContext.Memory.Save(userGoal, userInput.ToolsExecuted, userInput.CurrentGoalProgress)
+			err = gal.SessionContext.Memory.Save(userGoal, userInput.TasksExecuted, userInput.CurrentGoalProgress)
 			break
 		}
 
@@ -175,7 +184,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		if gal.SessionContext.Tasks != nil {
 			for _, task := range gal.SessionContext.Tasks.PullCompleted() {
 				key := fmt.Sprintf("%s (%s)", task.ID, task.Input)
-				userInput.ToolsExecuted[key] = formatTaskResult(task)
+				userInput.TasksExecuted[key] = formatTaskResult(task)
 			}
 		}
 	}
@@ -208,13 +217,8 @@ func formatTaskResult(t *TaskRecord) string {
 		fmt.Fprintf(&b, "Error: %s\n", t.Error)
 	}
 	if t.Result != nil {
-		fmt.Fprintf(&b, "ExitCode: %d\n", t.Result.ExitCode)
-		if t.Result.Stdout != "" {
-			fmt.Fprintf(&b, "Stdout: %s\n", t.Result.Stdout)
-		}
-		if t.Result.Stderr != "" {
-			fmt.Fprintf(&b, "Stderr: %s\n", t.Result.Stderr)
-		}
+		fmt.Fprintf(&b, "Result: %s\n", t.Result)
 	}
+
 	return strings.TrimRight(b.String(), "\n")
 }

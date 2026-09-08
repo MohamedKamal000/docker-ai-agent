@@ -2,9 +2,10 @@ package tools
 
 import (
 	"context"
+	"fmt"
+
 	"docker-cli/internal/core"
 	"docker-cli/internal/docker"
-	"fmt"
 )
 
 type DockerCommandsTool struct {
@@ -51,11 +52,12 @@ func (d *DockerCommandsTool) Call(ctx context.Context, input any) (string, error
 		return "", fmt.Errorf("command must be a string")
 	}
 
-	if err := docker.Exec(ctx, cmd, d.Tasks); err != nil {
+	id, err := docker.Exec(ctx, cmd, d.Tasks)
+	if err != nil {
 		return "", err
 	}
 
-	return "Docker command started in background. Result will be available through the task registry.", nil
+	return fmt.Sprintf("task id: %s", id), nil
 }
 
 func (d *DockerCommandsTool) GetInputSchema() map[string]any {

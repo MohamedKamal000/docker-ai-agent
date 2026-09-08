@@ -2,9 +2,10 @@ package tools
 
 import (
 	"context"
-	"docker-cli/internal/core"
 	"encoding/json"
 	"fmt"
+
+	"docker-cli/internal/core"
 )
 
 type TaskStatusTool struct {
@@ -19,7 +20,7 @@ func NewTaskStatusTool(tasks *core.TaskRegistry) *TaskStatusTool {
 			"properties": map[string]any{
 				"task_id": map[string]any{
 					"type":        "string",
-					"description": "Optional task ID to check status for (e.g., task-12345678). If omitted, returns all tasks.",
+					"description": "Optional task ID to check status for (e.g., task-command-12345678). If omitted, returns all tasks.",
 				},
 			},
 			"additionalProperties": false,

@@ -2,10 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	"docker-cli/internal/core"
 	"docker-cli/internal/docker"
 	"docker-cli/internal/tools"
-	"fmt"
 
 	"github.com/firebase/genkit/go/genkit"
 )
@@ -62,7 +63,6 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	}
 
 	systemPrompt, err := core.ParsePrompt(core.System_Prompt_Template, dockerContext)
-
 	if err != nil {
 		return nil, err
 	}

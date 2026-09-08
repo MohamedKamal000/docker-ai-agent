@@ -25,5 +25,6 @@ type UserInputPrompt struct {
 	Goal                string            `json:"goal"`
 	CurrentGoalProgress []AgentResult     `json:"current-goal-progress"`
 	PreviousChat        []ChatInteraction `json:"previous-chat"`
-	ToolsExecuted       map[string]string `json:"tools-executed"`
+	TasksExecuted       map[string]string `json:"tools-executed"`
+	TasksRunning        map[string]string
 }
