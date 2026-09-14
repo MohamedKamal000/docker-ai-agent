@@ -8,7 +8,7 @@ import (
 )
 
 func renderChatScreen(m *ChatSessionModel, aboveInput ...string) tea.View {
-	line := common.RenderStatusLineBorder(m.width, "model name")
+	line := common.RenderStatusLineBorder(m.width, m.modelName)
 	chatBox := lipgloss.Place(
 		m.width,
 		m.height-m.viewPort.Height(),

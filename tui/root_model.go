@@ -46,7 +46,7 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case screens.SwitchToNewSessionMessage:
-		m.current = chat_session.NewChatSessionModel()
+		m.current = chat_session.NewChatSessionModel(m.agent.ModelName)
 		return m, func() tea.Msg {
 			return tea.WindowSizeMsg{
 				Width:  m.width,

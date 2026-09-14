@@ -9,10 +9,20 @@ import (
 
 func NormalStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.MouseClickMsg:
+		if msg.Button == tea.MouseLeft {
+			absLine := msg.Y + c.viewPort.YOffset()
+			idx := c.messageIndexAtLine(absLine)
+			if idx >= 0 {
+				c.toggleToolMessage(idx)
+			}
+			return c, nil
+		}
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "enter":
 			if c.ta.Value() == "" {
+				c.toggleLastToolMessage()
 				return c, nil
 			}
 

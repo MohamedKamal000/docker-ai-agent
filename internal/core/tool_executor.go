@@ -41,8 +41,23 @@ func (te *ToolExecutor) ExecuteGenkitTool(ctx context.Context, modelResponse *ai
 			return nil, err
 		}
 
+		command := extractCommandFromInput(req.ToolRequest.Input)
+		comm.ToUser <- NewToolExecution(req.ToolRequest.Name, command, output)
+
 		toolsOutput[tool.Name()] = output
 	}
 
 	return toolsOutput, nil
+}
+
+func extractCommandFromInput(input any) string {
+	m, ok := input.(map[string]any)
+	if !ok {
+		return "unknown"
+	}
+	cmd, ok := m["command"].(string)
+	if !ok {
+		return "unknown"
+	}
+	return cmd
 }

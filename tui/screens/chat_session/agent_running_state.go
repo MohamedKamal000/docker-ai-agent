@@ -11,13 +11,13 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-func (c *ChatSessionModel) sendAiMessage(message string, responseType core.ResponseType) {
+func (c *ChatSessionModel) sendAiMessage(message string, responseType core.ResponseType, toolData *core.ToolExecutionData) {
 	switch responseType {
 	case core.FinalResponse:
 		// Input is unlocked by the terminal RunFinished event, not here.
-		message = common.FMobyBlue.Render("Agent: ") + message
+		message = common.FMobyBlue.Render("Agent: ") + common.StripMarkdown(message)
 	case core.Thoughts:
-		message = common.FMobyBlue.Render("Thoughts: ") + message
+		message = common.FMobyBlue.Render("Thoughts: ") + common.StripMarkdown(message)
 	case core.Warning:
 		c.pendingWarningMessage = message
 		message = common.RenderWarningMessage(message, c.viewPort.Width())
@@ -25,6 +25,11 @@ func (c *ChatSessionModel) sendAiMessage(message string, responseType core.Respo
 	case core.Retrying:
 		// do nothing for now, we might add some ui for it later, but the current spinner does the job
 		return
+	case core.ToolExecution:
+		if toolData != nil {
+			c.trackToolMessage(toolData)
+			return
+		}
 	}
 	c.appendNewMessage(message)
 }
@@ -40,7 +45,7 @@ func AgentRunningStateExecute(s *common.StateManager[*ChatSessionModel], c *Chat
 	case screens.RunEvent:
 		switch msg.Kind {
 		case screens.RunResponse:
-			c.sendAiMessage(msg.Data.Message, msg.Data.Type)
+			c.sendAiMessage(msg.Data.Message, msg.Data.Type, msg.Data.ToolData)
 			return c, c.spinner.Tick
 		case screens.RunFailed:
 			c.appendNewMessage(common.RenderWarningBody(msg.Text, c.viewPort.Width()))

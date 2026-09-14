@@ -14,6 +14,7 @@ import (
 type Agent struct {
 	AgentLoop      core.AgentLoop
 	SessionContext *core.LoopContext
+	ModelName      string
 }
 
 var availableTools = map[string]func(*core.TaskRegistry) core.Tool{
@@ -73,5 +74,6 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	return &Agent{
 		AgentLoop:      agentLoop,
 		SessionContext: sessionContext,
+		ModelName:      config.ModelName,
 	}, nil
 }

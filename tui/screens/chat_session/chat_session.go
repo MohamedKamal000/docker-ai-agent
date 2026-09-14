@@ -3,6 +3,7 @@ package chat_session
 import (
 	"strings"
 
+	"docker-cli/internal/core"
 	"docker-cli/tui/common"
 	"docker-cli/tui/widgets"
 
@@ -33,6 +34,12 @@ var chatSessionStates = map[uint]common.StateDefinition[*ChatSessionModel]{
 	optionsMenuState.Value():  {Execute: OptionsMenuStateExecute, Render: OptionsMenuStateRender},
 }
 
+type toolMessage struct {
+	toolName string
+	command  string
+	output   string
+}
+
 type ChatSessionModel struct {
 	ta                    textarea.Model
 	viewPort              viewport.Model
@@ -40,15 +47,21 @@ type ChatSessionModel struct {
 	width                 int
 	height                int
 	messages              []string
+	toolMessages          map[int]toolMessage
+	expandedToolMessages  map[int]bool
 	stateManager          *common.StateManager[*ChatSessionModel]
 	OptionsMenu           widgets.OptionsModel
 	pendingWarningMessage string
+	modelName             string
 }
 
-func NewChatSessionModel() *ChatSessionModel {
+func NewChatSessionModel(modelName string) *ChatSessionModel {
 	stateManager := common.NewStateManager(chatSessionStates, NormalState.Value())
 	var cs ChatSessionModel
 	cs.stateManager = stateManager
+	cs.modelName = modelName
+	cs.toolMessages = make(map[int]toolMessage)
+	cs.expandedToolMessages = make(map[int]bool)
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -92,7 +105,16 @@ func (c *ChatSessionModel) refreshContent() {
 		c.viewPort.SetContent(c.renderLogoHeader())
 		return
 	}
-	wrapped := lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(c.messages, "\n"))
+	rendered := make([]string, len(c.messages))
+	for i, msg := range c.messages {
+		if tm, ok := c.toolMessages[i]; ok {
+			expanded := c.expandedToolMessages[i]
+			rendered[i] = common.RenderToolExecution(tm.toolName, tm.command, tm.output, expanded, c.viewPort.Width())
+		} else {
+			rendered[i] = msg
+		}
+	}
+	wrapped := lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(rendered, "\n\n"))
 	c.viewPort.SetContent(wrapped)
 }
 
@@ -124,6 +146,66 @@ func (c *ChatSessionModel) appendNewMessage(styledMessage string) {
 	c.messages = append(c.messages, styledMessage)
 	c.refreshContent()
 	c.viewPort.GotoBottom()
+}
+
+func (c *ChatSessionModel) trackToolMessage(data *core.ToolExecutionData) {
+	idx := len(c.messages)
+	c.toolMessages[idx] = toolMessage{
+		toolName: data.ToolName,
+		command:  data.Command,
+		output:   data.Output,
+	}
+	c.messages = append(c.messages, "")
+	c.refreshContent()
+	c.viewPort.GotoBottom()
+}
+
+func (c *ChatSessionModel) toggleToolMessage(idx int) {
+	if _, ok := c.toolMessages[idx]; !ok {
+		return
+	}
+	c.expandedToolMessages[idx] = !c.expandedToolMessages[idx]
+	c.refreshContent()
+	c.viewPort.GotoBottom()
+}
+
+func (c *ChatSessionModel) toggleLastToolMessage() {
+	if len(c.toolMessages) == 0 {
+		return
+	}
+	lastIdx := -1
+	for idx := range c.toolMessages {
+		if idx > lastIdx {
+			lastIdx = idx
+		}
+	}
+	if lastIdx == -1 {
+		return
+	}
+	c.toggleToolMessage(lastIdx)
+}
+
+func (c *ChatSessionModel) messageIndexAtLine(clickY int) int {
+	if len(c.messages) == 0 {
+		return -1
+	}
+	line := 0
+	for i, msg := range c.messages {
+		var rendered string
+		if tm, ok := c.toolMessages[i]; ok {
+			expanded := c.expandedToolMessages[i]
+			rendered = common.RenderToolExecution(tm.toolName, tm.command, tm.output, expanded, c.viewPort.Width())
+		} else {
+			rendered = msg
+		}
+		rendered = lipgloss.NewStyle().Width(c.viewPort.Width()).Render(rendered)
+		height := lipgloss.Height(rendered)
+		if clickY >= line && clickY < line+height {
+			return i
+		}
+		line += height
+	}
+	return -1
 }
 
 func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
@@ -169,7 +251,7 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c *ChatSessionModel) View() tea.View {
-	line := common.RenderStatusLineBorder(c.width, "model name")
+	line := common.RenderStatusLineBorder(c.width, c.modelName)
 	content := c.stateManager.RenderCurrent(c).Content
 	v := tea.NewView(content)
 
@@ -180,6 +262,6 @@ func (c *ChatSessionModel) View() tea.View {
 
 	v.AltScreen = true
 	v.Cursor = cur
-	v.MouseMode = tea.MouseModeNone
+	v.MouseMode = tea.MouseModeAllMotion
 	return v
 }

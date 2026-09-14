@@ -28,4 +28,7 @@ var (
 	FRed = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4545"))
 
 	FGray = lipgloss.NewStyle().Foreground(lipgloss.Color("#384d54"))
+
+	FYellow = lipgloss.NewStyle().Foreground(lipgloss.Color("#F0C040"))
+	BTool   = lipgloss.NewStyle().Background(lipgloss.Color("#1a1a2e"))
 )

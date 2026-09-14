@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"docker-cli/internal/models"
@@ -25,11 +26,19 @@ const (
 	FinalResponse
 	Warning
 	Retrying
+	ToolExecution
 )
 
+type ToolExecutionData struct {
+	ToolName string
+	Command  string
+	Output   string
+}
+
 type AiResponse struct {
-	Type    ResponseType
-	Message string
+	Type     ResponseType
+	Message  string
+	ToolData *ToolExecutionData
 }
 
 func NewThought(result models.AgentResult) AiResponse {
@@ -71,6 +80,18 @@ func NewRetryingMessage(msg string) AiResponse {
 	return AiResponse{
 		Type:    Retrying,
 		Message: msg,
+	}
+}
+
+func NewToolExecution(toolName, command, output string) AiResponse {
+	return AiResponse{
+		Type:    ToolExecution,
+		Message: fmt.Sprintf("%s: %s", toolName, command),
+		ToolData: &ToolExecutionData{
+			ToolName: toolName,
+			Command:  command,
+			Output:   output,
+		},
 	}
 }
 

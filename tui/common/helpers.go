@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -89,4 +90,45 @@ func RenderWarningMessage(message string, width int) string {
 		Render(message), status)
 
 	return renderGutterLines(message)
+}
+
+func RenderToolExecution(toolName, command, output string, expanded bool, width int) string {
+	indicator := FGray.Render("▶")
+	toolLabel := FYellow.Render(toolName)
+	summary := fmt.Sprintf("%s %s: %s", indicator, toolLabel, command)
+
+	if !expanded {
+		return renderGutterBlock(summary, width, BTool)
+	}
+
+	detailLines := []string{summary}
+	if output != "" {
+		detailLines = append(detailLines, FGray.Render(output))
+	}
+
+	body := strings.Join(detailLines, "\n")
+	style := BTool.Padding(1).
+		Width(width - 3).
+		MaxWidth(width - 3)
+
+	return renderGutterLines(style.Render(body))
+}
+
+var (
+	mdCodeBlockRe  = regexp.MustCompile("(?s)```[a-zA-Z]*\\s*\\n?(.*?)\\n?```")
+	mdInlineCodeRe = regexp.MustCompile("`([^`]+)`")
+	mdBoldRe       = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	mdItalicRe     = regexp.MustCompile(`\*(.+?)\*`)
+	mdHeaderRe     = regexp.MustCompile(`(?m)^#{1,6}\s+`)
+	mdHrRe         = regexp.MustCompile(`(?m)^[-*_]{3,}\s*$`)
+)
+
+func StripMarkdown(text string) string {
+	text = mdCodeBlockRe.ReplaceAllString(text, "$1")
+	text = mdInlineCodeRe.ReplaceAllString(text, "$1")
+	text = mdBoldRe.ReplaceAllString(text, "$1")
+	text = mdItalicRe.ReplaceAllString(text, "$1")
+	text = mdHeaderRe.ReplaceAllString(text, "")
+	text = mdHrRe.ReplaceAllString(text, "")
+	return strings.TrimSpace(text)
 }
