@@ -49,7 +49,7 @@ var ProviderMap map[string]ProviderInfo = map[string]ProviderInfo{
 	"Ollama": {
 		Provider:   Ollama,
 		EnvName:    "SERVER_ADDRESS",
-		PrefixName: "",
+		PrefixName: "ollama",
 	},
 	"DeepSeek": {
 		Provider:   Deepseek,
@@ -136,7 +136,7 @@ func ModelConfigFromJsonFile(filepath string) (ModelConfig, error) {
 	}
 	proivder := stringToProviderInfo(result.Provider)
 
-	if proivder.Provider != Ollama && !strings.HasPrefix(result.ModelName, proivder.PrefixName) {
+	if !strings.HasPrefix(result.ModelName, proivder.PrefixName) {
 		result.ModelName = proivder.PrefixName + "/" + result.ModelName
 	}
 

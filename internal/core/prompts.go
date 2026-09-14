@@ -184,11 +184,15 @@ CATEGORIES:
 USER REQUEST:
 {{.UserInput}}
 
-OUTPUT JSON (exactly this schema):
+OUTPUT JSON EXAMPLE (exactly this schema):
 {
-  "intent": "general_question|action_request|ambiguous",
+  "intent": "general_question",
   "rewritten_prompt": "Clear, optimized prompt for the downstream agent. For general_question: optimized question for direct answer (e.g., 'how do I run a container' -> 'Explain docker run command syntax, common flags, and examples'). For action_request: expanded with context (e.g., 'run nginx' -> 'Run an nginx container with default settings')."
 }
+
+JSON FIELD EXPLAINED:
+- "intent" : one of these values based on user question, general_question|action_request|ambiguous
+- "rewritten_prompt" : user prompt re-writen to be more clear
 `
 
 func ParsePrompt(tmpl string, data any) (string, error) {
