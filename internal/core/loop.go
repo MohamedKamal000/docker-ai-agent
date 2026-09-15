@@ -110,18 +110,16 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 	}
 
 	toolExec := NewToolExecutor(gal.SessionContext.Tools)
-	previousChat, err := gal.SessionContext.Memory.Load()
+	previousHistory, err := gal.SessionContext.Memory.Load()
 	if err != nil {
 		return err
 	}
-	step := 0
-	userInput := models.UserInputPrompt{
-		Goal:                userGoal,
-		CurrentGoalProgress: make([]models.AgentResult, 0),
-		PreviousChat:        previousChat,
-		TasksExecuted:       map[string]string{},
-	}
 
+	history := make([]models.HistoryEntry, len(previousHistory))
+	copy(history, previousHistory)
+	nextRun := len(history) + 1
+
+	step := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -133,22 +131,16 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		}
 		step++
 
+		completedTasks := map[string]*TaskRecord{}
 		if gal.SessionContext.Tasks != nil {
-			completedTasks := gal.SessionContext.Tasks.PullCompleted()
-			for _, task := range completedTasks {
-				key := fmt.Sprintf("taskId: %s)", task.ID)
-				val := fmt.Sprintf("Status: %s | \nResult: %s\nError: %s", task.Status, task.Result, task.Error)
-				userInput.TasksExecuted[key] = val
+			for _, t := range gal.SessionContext.Tasks.PullCompleted() {
+				completedTasks[t.ID] = t
 			}
+		}
 
-			currentTasksRunning := make(map[string]string, 0)
-			runningTasks := gal.SessionContext.Tasks.PullRunning()
-			for _, task := range runningTasks {
-				key := fmt.Sprintf("taskId: %s)", task.ID)
-				val := fmt.Sprintf("Command: %s, Status: %s", task.Input, task.Status)
-				currentTasksRunning[key] = val
-			}
-			userInput.TasksRunning = currentTasksRunning
+		userInput := models.UserInputPrompt{
+			Goal:    userGoal,
+			History: history,
 		}
 
 		aiStep, err := gal.Flow.Run(ctx, userInput)
@@ -166,9 +158,20 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		}
 
 		agentOutput := extractResult(aiStep)
+
 		if agentOutput.IsStructured && agentOutput.Structured.Done {
+			entry := models.HistoryEntry{
+				Run:           nextRun,
+				Goal:          userGoal,
+				FinalResponse: agentOutput.Structured.FinalResponse,
+				Done:          true,
+			}
+			if agentOutput.Structured.Thought != "" {
+				entry.Thought = agentOutput.Structured.Thought
+			}
+			history = append(history, entry)
 			comm.ToUser <- NewFinal(agentOutput)
-			err = gal.SessionContext.Memory.Save(userGoal, userInput.TasksExecuted, userInput.CurrentGoalProgress)
+			err = gal.SessionContext.Memory.Save(history)
 			break
 		}
 
@@ -177,16 +180,35 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			return err
 		}
 
+		entry := models.HistoryEntry{
+			Run:  nextRun,
+			Goal: userGoal,
+		}
 		if agentOutput.IsStructured && agentOutput.Structured.Thought != "" {
+			entry.Thought = agentOutput.Structured.Thought
 			comm.ToUser <- NewThought(agentOutput)
 		}
-		userInput.CurrentGoalProgress = append(userInput.CurrentGoalProgress, agentOutput)
+
 		if gal.SessionContext.Tasks != nil {
-			for _, task := range gal.SessionContext.Tasks.PullCompleted() {
-				key := fmt.Sprintf("%s (%s)", task.ID, task.Input)
-				userInput.TasksExecuted[key] = formatTaskResult(task)
+			for _, t := range gal.SessionContext.Tasks.PullCompleted() {
+				entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
+					ToolName: t.Tool,
+					Command:  t.Input,
+					Status:   string(t.Status),
+					Result:   formatTaskResult(t),
+				})
+			}
+			for _, t := range gal.SessionContext.Tasks.PullRunning() {
+				entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
+					ToolName: t.Tool,
+					Command:  t.Input,
+					Status:   string(t.Status),
+				})
 			}
 		}
+
+		history = append(history, entry)
+		nextRun++
 	}
 
 	return nil

@@ -1,14 +1,5 @@
 package models
 
-type ChatInteraction struct {
-	UserRequest        string            `json:"user_request"`
-	LLMThoughts        []string          `json:"llm_thoughts"`
-	FinalResponse      string            `json:"final_response,omitempty"`
-	ToolsExecuted      map[string]string `json:"tools_executed,omitempty"`
-	UnstructuredOutput []string          `json:"unstructured_output"`
-	IsStructured       bool              `json:"is_structured"`
-}
-
 type AgentExecutionStep struct {
 	Thought       string `json:"thought,omitempty" description:"the ai thought about the next action"`
 	FinalResponse string `json:"finalResponse,omitempty" description:"ai final response after finishing execution"`
@@ -21,10 +12,23 @@ type AgentResult struct {
 	IsStructured bool                `json:"is_structured"`
 }
 
+type ToolCallInfo struct {
+	ToolName string `json:"tool_name"`
+	Command  string `json:"command"`
+	Status   string `json:"status"`
+	Result   string `json:"result,omitempty"`
+}
+
+type HistoryEntry struct {
+	Run           int            `json:"run"`
+	Goal          string         `json:"goal"`
+	Thought       string         `json:"thought,omitempty"`
+	ToolCalls     []ToolCallInfo `json:"tool_calls,omitempty"`
+	FinalResponse string         `json:"final_response,omitempty"`
+	Done          bool           `json:"done,omitempty"`
+}
+
 type UserInputPrompt struct {
-	Goal                string            `json:"goal"`
-	CurrentGoalProgress []AgentResult     `json:"current-goal-progress"`
-	PreviousChat        []ChatInteraction `json:"previous-chat"`
-	TasksExecuted       map[string]string `json:"tools-executed"`
-	TasksRunning        map[string]string
+	Goal    string         `json:"goal"`
+	History []HistoryEntry `json:"history"`
 }

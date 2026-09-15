@@ -93,82 +93,22 @@ GOAL
 
 ---
 
-PREVIOUS CHAT HISTORY
+HISTORY
 
-{{range .PreviousChat}}
-User Request:
-{{.UserRequest}}
-
-{{if .IsStructured}}
-{{if .FinalResponse}}
-Final Response:
-{{.FinalResponse}}
+{{if .History}}
+{{range .History}}
+--- Run {{.Run}} ---
+User Request: {{.Goal}}
+{{if .Thought}}Thought: {{.Thought}}
+{{end}}{{range .ToolCalls}}Tool {{.ToolName}} executed: {{.Command}} [status: {{.Status}}]
+{{if .Result}}Tool result: {{.Result}}
+{{end}}{{end}}{{if .FinalResponse}}Agent: {{.FinalResponse}}
+{{end}}{{if .Done}}Done: true
+{{end}}
 {{end}}
 {{else}}
-Model Output:
-{{range .UnstructuredOutput}}
-- {{.}}
+No history yet.
 {{end}}
-{{end}}
-
-{{if .ToolsExecuted}}
-Tools Executed:
-{{range $tool, $result := .ToolsExecuted}}
-- {{$tool}}: {{$result}}
-{{end}}
-{{end}}
-
-----------------------------------------
-{{end}}
-
----
-
-CURRENT EXECUTION PROGRESS
-
-{{if .CurrentGoalProgress}}
-{{range .CurrentGoalProgress}}
-
-{{if .IsStructured}}
-{{if .Structured}}
-Final Response: {{.Structured.FinalResponse}}
-Done: {{.Structured.Done}}
-{{end}}
-{{else}}
-{{if .Raw}}
-- Raw Output:
-{{.Raw}}
-{{end}}
-{{end}}
-
-{{end}}
-{{else}}
-No execution steps yet.
-{{end}}
-
----
-
-TASKS FINISHED
-
-{{if .TasksExecuted}}
-{{range $tool, $result := .TasksExecuted}}
-- {{$tool}}: {{$result}}
-{{end}}
-{{else}}
-No tasks executed.
-{{end}}
-
----
-
-TASKS RUNNING
-
-{{if .TasksRunning}}
-{{range $tool, $result := .TasksRunning}}
-- {{$tool}}: {{$result}}
-{{end}}
-{{else}}
-No tasks running.
-{{end}}
----
 `
 
 const Intent_Classification_Template = `
