@@ -17,16 +17,16 @@ const (
 var (
 	popupStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#1D63ED")).
+			BorderForeground(lipgloss.Color("#2496ED")).
 			Width(popupWidth)
 
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#1D63ED")).
+			Foreground(lipgloss.Color("#2496ED")).
 			Bold(true)
 
-	selectedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#4EC7C4"))
+	selectedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#5DADE2"))
 	deselectedStyle = lipgloss.NewStyle()
-	noMatchesStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	noMatchesStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#484F58"))
 )
 
 // Option is a single entry in the options menu. Items with children open a
@@ -65,6 +65,7 @@ func NewOptionsModel() OptionsModel {
 		Items: []Option{
 			{Title: "Change Model", Children: placeholderModels()},
 			{Title: "Switch Session", Children: placeholderSessions()},
+			{Title: "Toggle Sidebar", Children: nil},
 		},
 	})
 }
@@ -87,6 +88,7 @@ func newOptionsModel(root OptionsPage) OptionsModel {
 // placeholder data until real sources are wired in.
 func placeholderModels() []Option {
 	return []Option{
+		{Title: "gemini-2.5-flash-lite"},
 		{Title: "gpt-4o"},
 		{Title: "gpt-4o-mini"},
 		{Title: "claude-sonnet"},
@@ -109,7 +111,7 @@ func (o *OptionsModel) currentPage() OptionsPage {
 }
 
 // filteredItems returns the current page's items matching the query.
-func (o OptionsModel) filteredItems() []Option {
+func (o *OptionsModel) filteredItems() []Option {
 	items := o.currentPage().Items
 	q := strings.ToLower(strings.TrimSpace(o.query.Value()))
 	if q == "" {
@@ -167,7 +169,7 @@ func (o *OptionsModel) Update(msg tea.Msg) (OptionsModel, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	var m OptionsModel = *o
+	m := *o
 	m.query, cmd = m.query.Update(msg)
 	if m.query.Value() != o.query.Value() {
 		m.clampCursor()
@@ -177,7 +179,7 @@ func (o *OptionsModel) Update(msg tea.Msg) (OptionsModel, tea.Cmd) {
 }
 
 // pathTitles collects the page titles from root to the current page.
-func (o OptionsModel) pathTitles() []string {
+func (o *OptionsModel) pathTitles() []string {
 	path := make([]string, 0, len(o.pages))
 	for _, p := range o.pages {
 		path = append(path, p.Title)
@@ -202,7 +204,7 @@ func (o *OptionsModel) clampCursor() {
 	}
 }
 
-func (o OptionsModel) View() tea.View {
+func (o *OptionsModel) View() tea.View {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render(o.currentPage().Title))

@@ -14,24 +14,23 @@ import (
 func (c *ChatSessionModel) sendAiMessage(message string, responseType core.ResponseType, toolData *core.ToolExecutionData) {
 	switch responseType {
 	case core.FinalResponse:
-		// Input is unlocked by the terminal RunFinished event, not here.
-		message = common.FMobyBlue.Render("Agent: ") + common.StripMarkdown(message)
+		c.appendNewMessage(common.RenderAiMessage(message, c.viewPort.Width()))
 	case core.Thoughts:
-		message = common.FMobyBlue.Render("Thoughts: ") + common.StripMarkdown(message)
+		c.appendNewMessage(common.RenderThought(message, c.viewPort.Width()))
 	case core.Warning:
 		c.pendingWarningMessage = message
-		message = common.RenderWarningMessage(message, c.viewPort.Width())
+		c.appendNewMessage(common.RenderWarning(message, c.viewPort.Width()))
 		c.stateManager.SwitchTo(ShowWarningState.Value())
 	case core.Retrying:
-		// do nothing for now, we might add some ui for it later, but the current spinner does the job
-		return
+		c.appendNewMessage(common.StyleWarning.Render("⟳ " + message))
+	case core.Error:
+		c.appendNewMessage(common.RenderError(message, c.viewPort.Width()))
 	case core.ToolExecution:
 		if toolData != nil {
 			c.trackToolMessage(toolData)
 			return
 		}
 	}
-	c.appendNewMessage(message)
 }
 
 func AgentRunningStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessionModel, msg tea.Msg) (*ChatSessionModel, tea.Cmd) {
@@ -48,10 +47,10 @@ func AgentRunningStateExecute(s *common.StateManager[*ChatSessionModel], c *Chat
 			c.sendAiMessage(msg.Data.Message, msg.Data.Type, msg.Data.ToolData)
 			return c, c.spinner.Tick
 		case screens.RunFailed:
-			c.appendNewMessage(common.RenderWarningBody(msg.Text, c.viewPort.Width()))
+			c.appendNewMessage(common.RenderWarning(msg.Text, c.viewPort.Width()))
 			c.stateManager.SwitchTo(NormalState.Value())
 		case screens.RunCanceled:
-			c.appendNewMessage(common.FMobyBlue.Render("Agent: ") + "Request canceled.")
+			c.appendNewMessage(common.RenderAiMessage("Request canceled.", c.viewPort.Width()))
 			c.stateManager.SwitchTo(NormalState.Value())
 		case screens.RunFinished:
 			c.stateManager.SwitchTo(NormalState.Value())
@@ -62,8 +61,9 @@ func AgentRunningStateExecute(s *common.StateManager[*ChatSessionModel], c *Chat
 }
 
 func AgentRunningStateRender(s *common.StateManager[*ChatSessionModel], m *ChatSessionModel) tea.View {
-	left := fmt.Sprintf("%s Agent is Running", m.spinner.View())
-	right := common.FCyan.Render("esc Cancel")
+	left := fmt.Sprintf("%s %s", m.spinner.View(), common.StyleTextPrimary.Render("Thinking..."))
+	right := common.StyleTextMuted.Render("esc to cancel")
+
 	status := lipgloss.JoinHorizontal(
 		lipgloss.Left,
 		left,

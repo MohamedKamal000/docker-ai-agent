@@ -25,6 +25,7 @@ const (
 	ShowWarningState
 	AgentRunningState
 	optionsMenuState
+	sidebarState
 )
 
 var chatSessionStates = map[uint]common.StateDefinition[*ChatSessionModel]{
@@ -32,6 +33,7 @@ var chatSessionStates = map[uint]common.StateDefinition[*ChatSessionModel]{
 	ShowWarningState.Value():  {Execute: ShowWarningStateExecute, Render: ShowWarningStateRender},
 	AgentRunningState.Value(): {Execute: AgentRunningStateExecute, Render: AgentRunningStateRender},
 	optionsMenuState.Value():  {Execute: OptionsMenuStateExecute, Render: OptionsMenuStateRender},
+	sidebarState.Value():      {Execute: SidebarStateExecute, Render: SidebarStateRender},
 }
 
 type toolMessage struct {
@@ -53,6 +55,7 @@ type ChatSessionModel struct {
 	OptionsMenu           widgets.OptionsModel
 	pendingWarningMessage string
 	modelName             string
+	sidebar               *SidebarModel
 }
 
 func NewChatSessionModel(modelName string) *ChatSessionModel {
@@ -62,30 +65,33 @@ func NewChatSessionModel(modelName string) *ChatSessionModel {
 	cs.modelName = modelName
 	cs.toolMessages = make(map[int]toolMessage)
 	cs.expandedToolMessages = make(map[int]bool)
+	cs.sidebar = NewSidebarModel()
+
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(common.ColorDockerBlue))
 	cs.spinner = sp
+
 	cs.OptionsMenu = widgets.NewOptionsModel()
+
 	ta := textarea.New()
-	ta.Placeholder = "send a message...."
+	ta.Placeholder = "Ask about your Docker environment..."
 	ta.SetVirtualCursor(false)
 	ta.Focus()
-
 	ta.SetWidth(30)
-	ta.SetHeight(4)
-	ta.Prompt = common.FWhiteBlue.Render("┃ ")
-	ta.CharLimit = 500 // need to be adjusted based on the maximum number of tokens the user set no ?
+	ta.SetHeight(3)
+	ta.Prompt = common.StyleInputPrompt.Render("> ")
+	ta.CharLimit = 500
+
 	s := ta.Styles()
 	s.Focused.CursorLine = lipgloss.NewStyle()
+	ta.SetStyles(s)
+	ta.KeyMap.InsertNewline.SetEnabled(false)
 
 	vp := viewport.New(viewport.WithWidth(50), viewport.WithHeight(5))
 	vp.KeyMap.Left.SetEnabled(false)
 	vp.KeyMap.Right.SetEnabled(false)
 
-	ta.SetStyles(s)
-
-	ta.KeyMap.InsertNewline.SetEnabled(false)
 	cs.ta = ta
 	cs.viewPort = vp
 	cs.refreshContent()
@@ -93,11 +99,12 @@ func NewChatSessionModel(modelName string) *ChatSessionModel {
 }
 
 func (c *ChatSessionModel) renderLogoHeader() string {
-	logo := common.FWhiteBlue.Render(common.Logo)
+	logo := common.StylePrimary.Render(common.Logo)
 	if lipgloss.Width(logo) < c.viewPort.Width() {
 		logo = lipgloss.PlaceHorizontal(c.viewPort.Width(), lipgloss.Center, lipgloss.PlaceVertical(c.viewPort.Height(), lipgloss.Center, logo))
 	}
-	return logo + "\n"
+	subtitle := common.StyleTextSecondary.Render("Docker Environment AI Assistant")
+	return logo + "\n" + lipgloss.PlaceHorizontal(c.viewPort.Width(), lipgloss.Center, subtitle) + "\n"
 }
 
 func (c *ChatSessionModel) refreshContent() {
@@ -127,16 +134,16 @@ func (c *ChatSessionModel) confirmMessage(confirmed bool) {
 		c.messages = c.messages[:len(c.messages)-1]
 	}
 	if confirmed {
-		c.messages = append(c.messages, common.RenderConfirmedMessage(c.pendingWarningMessage, c.viewPort.Width()))
+		c.messages = append(c.messages, common.RenderConfirmed(c.pendingWarningMessage, c.viewPort.Width()))
 	} else {
-		c.messages = append(c.messages, common.RenderWarningBody(c.pendingWarningMessage, c.viewPort.Width()))
+		c.messages = append(c.messages, common.RenderRejected(c.pendingWarningMessage, c.viewPort.Width()))
 	}
 	c.refreshContent()
 	c.viewPort.GotoBottom()
 }
 
 func (c *ChatSessionModel) sendUserMessage(message string) {
-	c.messages = append(c.messages, common.RenderUserMessageWithBackground(message, c.viewPort.Width()))
+	c.messages = append(c.messages, common.RenderUserMessage(message, c.viewPort.Width()))
 	c.refreshContent()
 	c.ta.Reset()
 	c.viewPort.GotoBottom()
@@ -210,7 +217,6 @@ func (c *ChatSessionModel) messageIndexAtLine(clickY int) int {
 
 func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
-
 	var cmd tea.Cmd
 
 	c.ta, cmd = c.ta.Update(msg)
@@ -235,13 +241,18 @@ func (c *ChatSessionModel) updateChildren(msg tea.Msg) tea.Cmd {
 }
 
 func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd := c.sidebar.HandleMessage(msg); cmd != nil {
+		c.refreshContent()
+		return c, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		c.width = msg.Width
 		c.height = msg.Height
 		c.ta.SetWidth(msg.Width)
-		reserved := 2 // spinner
-		c.viewPort.SetHeight(msg.Height - (c.ta.Height() + lipgloss.Height(common.RenderStatusLineBorder(msg.Width, "")) + reserved))
+		reserved := 2
+		c.viewPort.SetHeight(msg.Height - (c.ta.Height() + lipgloss.Height(common.RenderStatusLine(msg.Width, c.modelName)) + reserved))
 		c.viewPort.SetWidth(msg.Width)
 		c.refreshContent()
 		c.viewPort.GotoBottom()
@@ -251,13 +262,12 @@ func (c *ChatSessionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c *ChatSessionModel) View() tea.View {
-	line := common.RenderStatusLineBorder(c.width, c.modelName)
 	content := c.stateManager.RenderCurrent(c).Content
 	v := tea.NewView(content)
 
 	cur := c.ta.Cursor()
 	if cur != nil {
-		cur.Y += c.height - c.ta.Height() - lipgloss.Height(line)
+		cur.Y += c.height - c.ta.Height() - 1
 	}
 
 	v.AltScreen = true

@@ -9,26 +9,90 @@ import (
 //go:embed logo.txt
 var Logo string
 
+// Docker-branded color palette
+const (
+	// Primary brand colors
+	ColorDockerBlue      = "#2496ED"
+	ColorDockerDarkBlue  = "#1A5276"
+	ColorDockerLightBlue = "#5DADE2"
+
+	// Semantic colors
+	ColorSuccess = "#27AE60"
+	ColorWarning = "#F39C12"
+	ColorError   = "#E74C3C"
+
+	// UI chrome colors
+	ColorBackground    = "#0D1117"
+	ColorBackgroundAlt = "#161B22"
+	ColorSurface       = "#21262D"
+	ColorBorder        = "#30363D"
+	ColorBorderFocused = ColorDockerBlue
+
+	// Text colors
+	ColorTextPrimary   = "#E6EDF3"
+	ColorTextSecondary = "#8B949E"
+	ColorTextMuted     = "#484F58"
+)
+
+// Pre-built styles for common UI elements
 var (
-	FWhiteBlue = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B9BCC"))
-	FGreenish  = lipgloss.NewStyle().Foreground(lipgloss.Color("#4EC7C4"))
-	BGreenish  = lipgloss.NewStyle().Background(lipgloss.Color("#4EC7C4"))
+	// Primary accent style (Docker blue)
+	StylePrimary = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorDockerBlue)).
+			Bold(true)
 
-	BEmerald = lipgloss.NewStyle().Background(lipgloss.Color("#50C878"))
+	// Secondary accent (darker blue)
+	StyleSecondary = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorDockerDarkBlue))
 
-	FMobyBlue = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D63ED"))
+	// Light accent
+	StyleAccent = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorDockerLightBlue))
 
-	BMobyBlue = lipgloss.NewStyle().Background(lipgloss.Color("#1D63ED"))
+	// Semantic styles
+	StyleSuccess = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorSuccess))
+	StyleWarning = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorWarning))
+	StyleError = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorError))
 
-	FCyan = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FD7AF"))
+	// Text styles
+	StyleTextPrimary = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(ColorTextPrimary))
+	StyleTextSecondary = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(ColorTextSecondary))
+	StyleTextMuted = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorTextMuted))
 
-	BBlack = lipgloss.NewStyle().Background(lipgloss.Color("#131313"))
+	// Background styles
+	StyleSurface = lipgloss.NewStyle().
+			Background(lipgloss.Color(ColorSurface)).
+			Foreground(lipgloss.Color(ColorTextPrimary))
+	StyleBackground = lipgloss.NewStyle().
+			Background(lipgloss.Color(ColorBackground)).
+			Foreground(lipgloss.Color(ColorTextPrimary))
 
-	BRed = lipgloss.NewStyle().Background(lipgloss.Color("#e84c3d"))
-	FRed = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4545"))
+	// Border styles
+	StyleBorder = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color(ColorBorder))
+	StyleBorderFocused = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(lipgloss.Color(ColorBorderFocused))
 
-	FGray = lipgloss.NewStyle().Foreground(lipgloss.Color("#384d54"))
+	// Status bar style
+	StyleStatusBar = lipgloss.NewStyle().
+			Background(lipgloss.Color(ColorBackgroundAlt)).
+			Foreground(lipgloss.Color(ColorTextSecondary)).
+			Padding(0, 1)
 
-	FYellow = lipgloss.NewStyle().Foreground(lipgloss.Color("#F0C040"))
-	BTool   = lipgloss.NewStyle().Background(lipgloss.Color("#1a1a2e"))
+	// Gutter style (left border for messages)
+	StyleGutter = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorDockerBlue))
+
+	// Input prompt style
+	StyleInputPrompt = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(ColorDockerBlue)).
+				Bold(true)
 )

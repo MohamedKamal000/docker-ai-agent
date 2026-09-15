@@ -8,110 +8,182 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-func RenderWithBorderForDebug(text string) string {
-	return lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Margin(0).Padding(0).Render(text)
-}
-
-// needs to be refactored later in a dedicated widget
-// since we will have tokens usage and context
-func RenderStatusLineBorder(width int, model string) string {
-	left := FCyan.Render("Ctrl+O Options")
-	right := FCyan.Render(fmt.Sprintf("● %s", model))
-
-	status := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		left,
-		lipgloss.PlaceHorizontal(
-			width-(lipgloss.Width(left)+lipgloss.Width(right)),
-			lipgloss.Right,
-			right,
-		),
-	)
-
-	statusStyle := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true, false, false, false)
-
-	return statusStyle.Width(width).Render(status)
-}
-
-// renderGutterLines prefixes each line of an already-rendered body with a ┃
-// gutter.
+// renderGutterLines prefixes each line with a blue gutter bar.
 func renderGutterLines(body string) string {
 	lines := strings.Split(body, "\n")
-
 	var b strings.Builder
 	for _, line := range lines {
-		b.WriteString(FMobyBlue.Render("┃"))
+		b.WriteString(StyleGutter.Render("┃"))
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
-
 	return b.String()
 }
 
-// renderGutterBlock renders a message in a padded background block with a
-// ┃ gutter prefix on each line.
-func renderGutterBlock(message string, width int, bg lipgloss.Style) string {
-	style := bg.Padding(1).
-		Width(width - 3). // 1 for ┃ + 2 spaces
-		MaxWidth(width - 3)
+// renderBlock renders content inside a bordered box with a header.
+func renderBlock(header, content string, width int, borderColor string) string {
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Width(width-2).
+		Padding(0, 1)
 
-	return renderGutterLines(style.Render(message))
+	if content == "" {
+		return borderStyle.Render(header)
+	}
+	return borderStyle.Render(header + "\n" + content)
 }
 
-func RenderUserMessageWithBackground(message string, width int) string {
-	return renderGutterBlock(message, width, BBlack)
-}
+// RenderStatusLine renders the bottom status bar.
+func RenderStatusLine(width int, modelName string, extras ...string) string {
+	parts := []string{
+		StyleTextMuted.Render("●"),
+		StyleTextSecondary.Render(modelName),
+	}
+	for _, extra := range extras {
+		parts = append(parts, StyleTextMuted.Render("│"), StyleTextSecondary.Render(extra))
+	}
+	left := strings.Join(parts, " ")
 
-func RenderWarningBody(message string, width int) string {
-	return renderGutterBlock(message, width, BRed)
-}
-
-func RenderConfirmedMessage(message string, width int) string {
-	return renderGutterBlock(message, width, BEmerald)
-}
-
-func RenderWarningMessage(message string, width int) string {
-	left := FGreenish.Render("Accept (y)")
-	right := FRed.Render("Reject (n)")
+	hints := StyleTextMuted.Render("Ctrl+O options │ Ctrl+B sidebar")
+	right := hints
 
 	status := lipgloss.JoinHorizontal(
 		lipgloss.Left,
 		left,
 		lipgloss.PlaceHorizontal(
-			width-(lipgloss.Width(left)+lipgloss.Width(right)),
+			width-lipgloss.Width(left)-lipgloss.Width(right),
 			lipgloss.Right,
 			right,
 		),
 	)
 
-	message = lipgloss.JoinVertical(lipgloss.Left, BRed.Padding(1).
-		Width(width-3). // 1 for ┃ + 2 spaces
-		MaxWidth(width-3).
-		Render(message), status)
-
-	return renderGutterLines(message)
+	return StyleStatusBar.
+		Width(width).
+		Render(status)
 }
 
+// RenderUserMessage renders a user message with a blue gutter.
+func RenderUserMessage(message string, width int) string {
+	style := lipgloss.NewStyle().
+		Width(width-2).
+		Padding(0, 1).
+		Foreground(lipgloss.Color(ColorTextPrimary))
+	return renderGutterLines(style.Render(message))
+}
+
+// RenderAiMessage renders an AI response.
+func RenderAiMessage(message string, width int) string {
+	stripped := StripMarkdown(message)
+	style := lipgloss.NewStyle().
+		Width(width).
+		Foreground(lipgloss.Color(ColorTextPrimary))
+	return style.Render(stripped)
+}
+
+// RenderThought renders a collapsible thought block.
+func RenderThought(message string, width int) string {
+	header := StyleTextMuted.Render("Thinking")
+	content := StyleTextSecondary.Render(StripMarkdown(message))
+	return renderBlock(header, content, width, ColorDockerDarkBlue)
+}
+
+// RenderWarning renders a destructive command warning.
+func RenderWarning(message string, width int) string {
+	header := StyleWarning.Render("⚠ Destructive Command")
+	content := StyleTextPrimary.Render(message)
+	block := renderBlock(header, content, width, ColorWarning)
+
+	actions := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		StyleSuccess.Render("[Y] Confirm"),
+		lipgloss.PlaceHorizontal(20, lipgloss.Right, StyleError.Render("[N] Cancel")),
+	)
+
+	return block + "\n" + actions
+}
+
+// RenderConfirmed renders a confirmed action.
+func RenderConfirmed(message string, width int) string {
+	header := StyleSuccess.Render("✓ Confirmed")
+	return renderBlock(header, message, width, ColorSuccess)
+}
+
+// RenderRejected renders a rejected action.
+func RenderRejected(message string, width int) string {
+	header := StyleError.Render("✗ Rejected")
+	return renderBlock(header, message, width, ColorError)
+}
+
+// RenderError renders an error message.
+func RenderError(message string, width int) string {
+	header := StyleError.Render("✗ Error")
+	return renderBlock(header, message, width, ColorError)
+}
+
+// RenderToolExecution renders a tool call with collapsible output.
 func RenderToolExecution(toolName, command, output string, expanded bool, width int) string {
-	indicator := FGray.Render("▶")
-	toolLabel := FYellow.Render(toolName)
-	summary := fmt.Sprintf("%s %s: %s", indicator, toolLabel, command)
+	statusIcon := StyleTextMuted.Render("▶")
+	toolLabel := StylePrimary.Render(toolName)
+	summary := fmt.Sprintf("%s %s: %s", statusIcon, toolLabel, command)
 
 	if !expanded {
-		return renderGutterBlock(summary, width, BTool)
+		return renderBlock(summary, "", width, ColorBorder)
 	}
 
-	detailLines := []string{summary}
+	content := summary
 	if output != "" {
-		detailLines = append(detailLines, FGray.Render(output))
+		content = summary + "\n" + StyleTextSecondary.Render(output)
+	}
+	return renderBlock(summary, content, width, ColorDockerBlue)
+}
+
+// RenderToolExecutionWithStatus renders a tool call with running/completed status.
+func RenderToolExecutionWithStatus(toolName, command, output string, status string, expanded bool, width int) string {
+	var statusIcon string
+	var borderColor string
+
+	switch status {
+	case "running":
+		statusIcon = StyleWarning.Render("⠋")
+		borderColor = ColorWarning
+	case "completed":
+		statusIcon = StyleSuccess.Render("✓")
+		borderColor = ColorSuccess
+	case "failed":
+		statusIcon = StyleError.Render("✗")
+		borderColor = ColorError
+	default:
+		statusIcon = StyleTextMuted.Render("▶")
+		borderColor = ColorBorder
 	}
 
-	body := strings.Join(detailLines, "\n")
-	style := BTool.Padding(1).
-		Width(width - 3).
-		MaxWidth(width - 3)
+	toolLabel := StylePrimary.Render(toolName)
+	header := fmt.Sprintf("%s %s: %s", statusIcon, toolLabel, command)
 
-	return renderGutterLines(style.Render(body))
+	if !expanded && status != "running" {
+		return renderBlock(header, "", width, borderColor)
+	}
+
+	content := ""
+	if output != "" {
+		content = StyleTextSecondary.Render(output)
+	}
+	return renderBlock(header, content, width, borderColor)
+}
+
+// RenderInputBox wraps the textarea's own rendered view in a styled border.
+func RenderInputBox(textareaView string, focused bool, width int) string {
+	borderColor := ColorBorder
+	if focused {
+		borderColor = ColorBorderFocused
+	}
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Width(width - 2).
+		Render(textareaView)
 }
 
 var (
