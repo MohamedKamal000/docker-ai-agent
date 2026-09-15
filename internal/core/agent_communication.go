@@ -27,6 +27,7 @@ const (
 	Warning
 	Retrying
 	ToolExecution
+	Error
 )
 
 type ToolExecutionData struct {
@@ -92,6 +93,13 @@ func NewToolExecution(toolName, command, output string) AiResponse {
 			Command:  command,
 			Output:   output,
 		},
+	}
+}
+
+func NewError(msg string) AiResponse {
+	return AiResponse{
+		Type:    Error,
+		Message: msg,
 	}
 }
 

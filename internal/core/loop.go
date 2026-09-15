@@ -88,7 +88,8 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 
 	classification, err := gal.Classifier.Classify(ctx, userGoal)
 	if err != nil {
-		return err
+		comm.ToUser <- NewError(err.Error())
+		return nil
 	}
 
 	switch classification.Intent {
@@ -152,9 +153,11 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 				}
 				continue
 			} else if strings.Contains(err.Error(), "429") {
-				return fmt.Errorf("you have exceeded the limit")
+				comm.ToUser <- NewError("Rate limit exceeded. Please wait a moment and try again.")
+				return nil
 			}
-			return err
+			comm.ToUser <- NewError(err.Error())
+			return nil
 		}
 
 		agentOutput := extractResult(aiStep)
@@ -220,7 +223,8 @@ func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt st
 		ai.WithSystem("You are a Docker expert. Answer the user's question clearly and concisely. No tools."),
 		ai.WithPrompt(prompt))
 	if err != nil {
-		return err
+		comm.ToUser <- NewError(err.Error())
+		return nil
 	}
 	comm.ToUser <- NewFinal(models.AgentResult{
 		Structured: &models.AgentExecutionStep{

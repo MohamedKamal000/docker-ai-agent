@@ -8,13 +8,14 @@ import (
 )
 
 func renderChatScreen(m *ChatSessionModel, aboveInput ...string) tea.View {
-	line := common.RenderStatusLineBorder(m.width, m.modelName)
+	statusLine := common.RenderStatusLine(m.width, m.modelName)
+
 	chatBox := lipgloss.Place(
 		m.width,
 		m.height-m.viewPort.Height(),
 		lipgloss.Left,
 		lipgloss.Bottom,
-		lipgloss.JoinVertical(lipgloss.Left, append(aboveInput, m.ta.View(), line)...),
+		lipgloss.JoinVertical(lipgloss.Left, append(aboveInput, m.ta.View(), statusLine)...),
 	)
 
 	content := m.viewPort.View() + "\n" + chatBox

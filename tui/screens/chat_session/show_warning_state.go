@@ -12,7 +12,7 @@ func ShowWarningStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatS
 	case screens.RunEvent:
 		switch msg.Kind {
 		case screens.RunFailed, screens.RunCanceled:
-			c.appendNewMessage(common.RenderWarningBody(msg.Text, c.viewPort.Width()))
+			c.appendNewMessage(common.RenderWarning(msg.Text, c.viewPort.Width()))
 			c.stateManager.SwitchTo(NormalState.Value())
 		case screens.RunFinished:
 			c.stateManager.SwitchTo(NormalState.Value())
