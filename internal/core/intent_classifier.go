@@ -43,13 +43,9 @@ type IntentClassificationInput struct {
 
 func NewIntentClassifier(client GenkitClient) *GenkitIntentClassifier {
 	flow := genkit.DefineFlow(client.G, "IntentClassifier", func(ctx context.Context, input IntentClassificationInput) (*ai.ModelResponse, error) {
-		parsedPrompt, err := ParsePrompt(Intent_Classification_Template, input)
-		if err != nil {
-			return nil, err
-		}
 		resp, err := genkit.Generate(ctx, client.G, ai.WithModelName(client.Config.ModelName),
-			ai.WithSystem("You are a request classifier. Output only valid JSON matching the specified schema."),
-			ai.WithPrompt(parsedPrompt))
+			ai.WithSystem(Intent_Classification_Template),
+			ai.WithPrompt("USER PROMPT: "+input.UserInput))
 		if err != nil {
 			return nil, err
 		}

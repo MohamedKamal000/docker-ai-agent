@@ -112,17 +112,17 @@ No history yet.
 `
 
 const Intent_Classification_Template = `
-Classify the user's request into ONE category:
+ROLE 
+your a docker senior developer and need to classify the user request into ONE AND ONLY ONE of these categories 
 
 CATEGORIES:
-- general_question: User wants information, explanation, or guidance. 
+- general_question: if user asks a general question related to docker that does not need to execute tools
   Examples: "how do I run a container", "what is a Dockerfile", "explain volumes", "best practices for..."
-- action_request: User wants to perform an operation on THEIR Docker environment.
-  Examples: "run nginx", "stop container abc", "list my images", "build my project", "delete unused volumes"
-- ambiguous: Intent unclear, could be either, or missing critical details.
 
-USER REQUEST:
-{{.UserInput}}
+- action_request: User wants to perform an operation on THEIR Docker environment.
+  Examples: "run an nginx for me", "stop container abc", "list my images", "delete unused volumes"
+
+- ambiguous: Intent unclear, could be either, unrelated question or missing critical details.
 
 OUTPUT JSON EXAMPLE (exactly this schema):
 {

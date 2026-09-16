@@ -122,6 +122,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 
 	step := 0
 	for {
+		time.Sleep(time.Second) // wait on purpose for 1 second to prevent any spam and also let imidiate tool calls finish
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -132,11 +133,25 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		}
 		step++
 
-		completedTasks := map[string]*TaskRecord{}
-		if gal.SessionContext.Tasks != nil {
-			for _, t := range gal.SessionContext.Tasks.PullCompleted() {
-				completedTasks[t.ID] = t
-			}
+		entry := models.HistoryEntry{
+			Run:  nextRun,
+			Goal: userGoal,
+		}
+
+		for _, t := range gal.SessionContext.Tasks.PullCompleted() {
+			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
+				ToolName: t.Tool,
+				Command:  t.Input,
+				Status:   string(t.Status),
+				Result:   formatTaskResult(t),
+			})
+		}
+		for _, t := range gal.SessionContext.Tasks.PullRunning() {
+			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
+				ToolName: t.Tool,
+				Command:  t.Input,
+				Status:   string(t.Status),
+			})
 		}
 
 		userInput := models.UserInputPrompt{
@@ -183,31 +198,9 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			return err
 		}
 
-		entry := models.HistoryEntry{
-			Run:  nextRun,
-			Goal: userGoal,
-		}
 		if agentOutput.IsStructured && agentOutput.Structured.Thought != "" {
 			entry.Thought = agentOutput.Structured.Thought
 			comm.ToUser <- NewThought(agentOutput)
-		}
-
-		if gal.SessionContext.Tasks != nil {
-			for _, t := range gal.SessionContext.Tasks.PullCompleted() {
-				entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
-					ToolName: t.Tool,
-					Command:  t.Input,
-					Status:   string(t.Status),
-					Result:   formatTaskResult(t),
-				})
-			}
-			for _, t := range gal.SessionContext.Tasks.PullRunning() {
-				entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
-					ToolName: t.Tool,
-					Command:  t.Input,
-					Status:   string(t.Status),
-				})
-			}
 		}
 
 		history = append(history, entry)
