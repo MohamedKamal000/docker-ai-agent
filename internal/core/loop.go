@@ -28,11 +28,12 @@ type GenkitAgentLoop struct {
 	Flow           AgentFlow
 	SessionContext *LoopContext
 	Classifier     IntentClassifier
+	Evaluator      GoalEvaluator
 }
 
-func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string, classifier IntentClassifier) *GenkitAgentLoop {
+func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string, classifier IntentClassifier, evaluator GoalEvaluator) *GenkitAgentLoop {
 	flow := NewDockerAgentFlow(client, sessionContext.Tools, systemPrompt)
-	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow, Classifier: classifier}
+	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow, Classifier: classifier, Evaluator: evaluator}
 }
 
 var (
@@ -97,7 +98,6 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		comm.ToUser <- NewFinal(models.AgentResult{
 			Structured: &models.AgentExecutionStep{
 				FinalResponse: "Your request is unclear. Are you asking for information (e.g., 'how do I...') or wanting me to perform an action on your Docker environment (e.g., 'run nginx')? Please clarify.",
-				Done:          true,
 			},
 			IsStructured: true,
 		})
@@ -122,7 +122,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 
 	step := 0
 	for {
-		time.Sleep(time.Second) // wait on purpose for 1 second to prevent any spam and also let imidiate tool calls finish
+		time.Sleep(time.Second) // wait on purpose for 1 second to prevent any spam and also let immediate tool calls finish
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -177,22 +177,6 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 
 		agentOutput := extractResult(aiStep)
 
-		if agentOutput.IsStructured && agentOutput.Structured.Done {
-			entry := models.HistoryEntry{
-				Run:           nextRun,
-				Goal:          userGoal,
-				FinalResponse: agentOutput.Structured.FinalResponse,
-				Done:          true,
-			}
-			if agentOutput.Structured.Thought != "" {
-				entry.Thought = agentOutput.Structured.Thought
-			}
-			history = append(history, entry)
-			comm.ToUser <- NewFinal(agentOutput)
-			err = gal.SessionContext.Memory.Save(history)
-			break
-		}
-
 		_, err = toolExec.ExecuteGenkitTool(ctx, aiStep, comm)
 		if err != nil {
 			return err
@@ -203,7 +187,35 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			comm.ToUser <- NewThought(agentOutput)
 		}
 
+		if agentOutput.IsStructured && agentOutput.Structured.FinalResponse != "" {
+			entry.FinalResponse = agentOutput.Structured.FinalResponse
+		}
+
 		history = append(history, entry)
+
+		evaluatorInput := EvaluatorInput{
+			Goal:    userGoal,
+			History: history,
+		}
+		evalResult, err := gal.Evaluator.Evaluate(ctx, evaluatorInput)
+		if err != nil {
+			comm.ToUser <- NewError(err.Error())
+			return nil
+		}
+
+		if evalResult.GoalAccomplished {
+			if evalResult.FinalResponse != "" {
+				comm.ToUser <- NewFinal(models.AgentResult{
+					Structured: &models.AgentExecutionStep{
+						FinalResponse: evalResult.FinalResponse,
+					},
+					IsStructured: true,
+				})
+			}
+			err = gal.SessionContext.Memory.Save(history)
+			break
+		}
+
 		nextRun++
 	}
 
@@ -222,7 +234,6 @@ func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt st
 	comm.ToUser <- NewFinal(models.AgentResult{
 		Structured: &models.AgentExecutionStep{
 			FinalResponse: resp.Text(),
-			Done:          true,
 		},
 		IsStructured: true,
 	})

@@ -2,8 +2,7 @@ package models
 
 type AgentExecutionStep struct {
 	Thought       string `json:"thought,omitempty" description:"the ai thought about the next action"`
-	FinalResponse string `json:"finalResponse,omitempty" description:"ai final response after finishing execution"`
-	Done          bool   `json:"done,omitempty" description:"a flag for the ai to set that he finished the execution"`
+	FinalResponse string `json:"finalResponse,omitempty" description:"summary of what was accomplished in this step"`
 }
 
 type AgentResult struct {
