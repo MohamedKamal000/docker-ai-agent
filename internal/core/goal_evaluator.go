@@ -12,7 +12,7 @@ import (
 )
 
 type EvaluatorInput struct {
-	Goal    string              `json:"goal"`
+	Goal    string                `json:"goal"`
 	History []models.HistoryEntry `json:"history"`
 }
 
