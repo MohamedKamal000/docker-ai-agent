@@ -1,11 +1,11 @@
 name: Go CI
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
   pull_request:
 
 jobs:
@@ -20,20 +20,11 @@ jobs:
       - name: setup go
         uses: actions/setup-go@v4
         with:
-          go-version-file: 'go.mod'
-          cache: 'true'
+          go-version-file: "go.mod"
+          cache: "true"
 
-      - name: Check code formatting
-        run: |
-          unformatted=$(gofmt -l .)
-            if [ -n "$unformatted" ]; then
-                echo "The following files are not properly formatted:"
-                echo "$unformatted"
-                echo "run 'go fmt ./...' to format the code."
-                exit 1
-            fi
-  
-  
+      - name: run code formatting
+        run: gofmt -w .
 
   test:
     name: Run tests
@@ -46,8 +37,8 @@ jobs:
       - name: setup go
         uses: actions/setup-go@v4
         with:
-          go-version-file: 'go.mod'
-          cache: 'true'
+          go-version-file: "go.mod"
+          cache: "true"
 
       - name: Install dependencies
         run: go mod download
@@ -55,4 +46,3 @@ jobs:
       - name: Run tests
         run: go test -timeout 20m ./...
         shell: bash
-

@@ -6,6 +6,7 @@ import (
 
 	"docker-cli/internal/core"
 	"docker-cli/internal/docker"
+	"docker-cli/internal/rag"
 	"docker-cli/internal/tools"
 
 	"github.com/firebase/genkit/go/genkit"
@@ -37,7 +38,15 @@ func initalizeRegistery(g *genkit.Genkit, toolRegistry core.ToolRegistry, toolsT
 	return nil
 }
 
-func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []string) (*Agent, error) {
+type AgentOptions func(*Agent)
+
+func WithRagOption(retreiver *rag.Retriever) AgentOptions {
+	return func(agent *Agent) {
+		agent.SessionContext.Search = retreiver.SearchUserReqeust
+	}
+}
+
+func NewAgent(config core.AppConfig, ctx context.Context, toolsToRegister []string, options ...AgentOptions) (*Agent, error) {
 	genkitClient := core.NewGenkitClient(config)
 	chatSession := core.NewStaticMemoryStore()
 	toolRegistry := core.NewGenkitToolRegistry()
@@ -73,9 +82,15 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 	queryFlow := core.NewDockerQueryFlow(*genkitClient, toolRegistry, core.DockerQuery_System_Prompt)
 	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt, classifier, evaluator, queryFlow)
 
-	return &Agent{
+	agent := Agent{
 		AgentLoop:      agentLoop,
 		SessionContext: sessionContext,
 		ModelName:      config.ModelName,
-	}, nil
+	}
+
+	for _, o := range options {
+		o(&agent)
+	}
+
+	return &agent, nil
 }
