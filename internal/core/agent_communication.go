@@ -52,7 +52,7 @@ func NewThought(result models.AgentResult) AiResponse {
 
 	return AiResponse{
 		Type:    Thoughts,
-		Message: result.Structured.Thought,
+		Message: result.Structured.Plan,
 	}
 }
 
@@ -66,7 +66,7 @@ func NewFinal(result models.AgentResult) AiResponse {
 
 	return AiResponse{
 		Type:    FinalResponse,
-		Message: result.Structured.FinalResponse,
+		Message: result.Structured.StepSummary,
 	}
 }
 

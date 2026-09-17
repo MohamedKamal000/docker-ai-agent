@@ -70,7 +70,8 @@ func NewAgent(config core.ModelConfig, ctx context.Context, toolsToRegister []st
 
 	classifier := core.NewIntentClassifier(*genkitClient)
 	evaluator := core.NewGoalEvaluator(*genkitClient, toolRegistry, core.Evaluator_System_Prompt)
-	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt, classifier, evaluator)
+	queryFlow := core.NewDockerQueryFlow(*genkitClient, toolRegistry, core.DockerQuery_System_Prompt)
+	agentLoop := core.NewGenkitAgentLoop(*genkitClient, sessionContext, systemPrompt, classifier, evaluator, queryFlow)
 
 	return &Agent{
 		AgentLoop:      agentLoop,

@@ -14,6 +14,7 @@ type Intent string
 
 const (
 	IntentGeneralQuestion Intent = "general_question"
+	IntentDockerQuery     Intent = "docker_query"
 	IntentActionRequest   Intent = "action_request"
 	IntentAmbiguous       Intent = "ambiguous"
 )
@@ -73,7 +74,7 @@ func (c *GenkitIntentClassifier) Classify(ctx context.Context, userInput string)
 	}
 
 	intent := Intent(classification.Intent)
-	if intent != IntentGeneralQuestion && intent != IntentActionRequest && intent != IntentAmbiguous {
+	if intent != IntentGeneralQuestion && intent != IntentDockerQuery && intent != IntentActionRequest && intent != IntentAmbiguous {
 		return ClassificationResult{}, fmt.Errorf("invalid intent: %s", classification.Intent)
 	}
 

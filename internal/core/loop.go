@@ -26,14 +26,15 @@ type LoopContext struct {
 type GenkitAgentLoop struct {
 	Client         GenkitClient
 	Flow           AgentFlow
+	QueryFlow      DockerQueryFlow
 	SessionContext *LoopContext
 	Classifier     IntentClassifier
 	Evaluator      GoalEvaluator
 }
 
-func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string, classifier IntentClassifier, evaluator GoalEvaluator) *GenkitAgentLoop {
+func NewGenkitAgentLoop(client GenkitClient, sessionContext *LoopContext, systemPrompt string, classifier IntentClassifier, evaluator GoalEvaluator, queryFlow DockerQueryFlow) *GenkitAgentLoop {
 	flow := NewDockerAgentFlow(client, sessionContext.Tools, systemPrompt)
-	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow, Classifier: classifier, Evaluator: evaluator}
+	return &GenkitAgentLoop{Client: client, SessionContext: sessionContext, Flow: flow, Classifier: classifier, Evaluator: evaluator, QueryFlow: queryFlow}
 }
 
 var (
@@ -97,7 +98,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 	case IntentAmbiguous:
 		comm.ToUser <- NewFinal(models.AgentResult{
 			Structured: &models.AgentExecutionStep{
-				FinalResponse: "Your request is unclear. Are you asking for information (e.g., 'how do I...') or wanting me to perform an action on your Docker environment (e.g., 'run nginx')? Please clarify.",
+				StepSummary: "Your request is unclear. Are you asking for information (e.g., 'how do I...') or wanting me to perform an action on your Docker environment (e.g., 'run nginx')? Please clarify.",
 			},
 			IsStructured: true,
 		})
@@ -105,6 +106,9 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 
 	case IntentGeneralQuestion:
 		return gal.answerGeneralQuestion(ctx, classification.RewrittenPrompt, comm)
+
+	case IntentDockerQuery:
+		return gal.answerDockerQuery(ctx, classification.RewrittenPrompt, comm)
 
 	case IntentActionRequest:
 		userGoal = classification.RewrittenPrompt
@@ -182,13 +186,13 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			return err
 		}
 
-		if agentOutput.IsStructured && agentOutput.Structured.Thought != "" {
-			entry.Thought = agentOutput.Structured.Thought
+		if agentOutput.IsStructured && agentOutput.Structured.Plan != "" {
+			entry.Plan = agentOutput.Structured.Plan
 			comm.ToUser <- NewThought(agentOutput)
 		}
 
-		if agentOutput.IsStructured && agentOutput.Structured.FinalResponse != "" {
-			entry.FinalResponse = agentOutput.Structured.FinalResponse
+		if agentOutput.IsStructured && agentOutput.Structured.StepSummary != "" {
+			entry.Feedback = agentOutput.Structured.StepSummary
 		}
 
 		history = append(history, entry)
@@ -197,6 +201,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			Goal:    userGoal,
 			History: history,
 		}
+
 		evalResult, err := gal.Evaluator.Evaluate(ctx, evaluatorInput)
 		if err != nil {
 			comm.ToUser <- NewError(err.Error())
@@ -207,13 +212,21 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			if evalResult.FinalResponse != "" {
 				comm.ToUser <- NewFinal(models.AgentResult{
 					Structured: &models.AgentExecutionStep{
-						FinalResponse: evalResult.FinalResponse,
+						StepSummary: evalResult.FinalResponse,
 					},
 					IsStructured: true,
 				})
 			}
 			err = gal.SessionContext.Memory.Save(history)
 			break
+		}
+
+		if evalResult.Feedback != "" {
+			history = append(history, models.HistoryEntry{
+				Run:      nextRun,
+				Goal:     userGoal,
+				Feedback: evalResult.Feedback,
+			})
 		}
 
 		nextRun++
@@ -233,7 +246,23 @@ func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt st
 	}
 	comm.ToUser <- NewFinal(models.AgentResult{
 		Structured: &models.AgentExecutionStep{
-			FinalResponse: resp.Text(),
+			StepSummary: resp.Text(),
+		},
+		IsStructured: true,
+	})
+	return nil
+}
+
+func (gal *GenkitAgentLoop) answerDockerQuery(ctx context.Context, goal string, comm *AgentCommunication) error {
+	resp, err := gal.QueryFlow.Run(ctx, DockerQueryInput{Goal: goal})
+	if err != nil {
+		comm.ToUser <- NewError(err.Error())
+		return nil
+	}
+
+	comm.ToUser <- NewFinal(models.AgentResult{
+		Structured: &models.AgentExecutionStep{
+			StepSummary: resp.Text(),
 		},
 		IsStructured: true,
 	})

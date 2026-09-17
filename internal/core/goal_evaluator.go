@@ -19,6 +19,7 @@ type EvaluatorInput struct {
 type EvaluatorResult struct {
 	GoalAccomplished bool   `json:"goal_accomplished"`
 	FinalResponse    string `json:"final_response,omitempty"`
+	Feedback         string `json:"feedback,omitempty"`
 }
 
 type EvaluatorFlow = *core.Flow[EvaluatorInput, *ai.ModelResponse, struct{}]
