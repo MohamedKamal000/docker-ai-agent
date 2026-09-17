@@ -6,7 +6,9 @@ This guide explains how the pipeline works, how to configure it, and how to init
 
 ## Architecture
 
-![RAG Pipeline Architecture](../images/rag-pipeline-arch.png)
+<a href="images/rag-pipeline-arch.png" target="_blank">
+  <img src="images/rag-pipeline-arch.png" alt="rag Architecture diagram">
+</a>
 
 The pipeline has two main phases:
 
