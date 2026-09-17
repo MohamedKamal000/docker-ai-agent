@@ -228,6 +228,22 @@ func ParseCommands(block string) []string {
 	return out
 }
 
+// some modles do dockerbin dockerbin args...
+// i remove the second dockerbin thats it
+func NormalizeCommand(args []string) []string {
+	result := make([]string, 0)
+	previous := ""
+	for _, arg := range args {
+		if arg == previous && arg == dockerBin {
+			continue
+		}
+		previous = arg
+		result = append(result, arg)
+	}
+
+	return result
+}
+
 func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (string, error) {
 	must()
 
@@ -235,7 +251,7 @@ func Exec(ctx context.Context, command string, tasks *core.TaskRegistry) (string
 	if err != nil {
 		return "", fmt.Errorf("docker: cannot parse %q: %w", command, err)
 	}
-
+	args = NormalizeCommand(args)
 	if len(args) > 0 && args[0] == "docker" {
 		args = args[1:]
 	}

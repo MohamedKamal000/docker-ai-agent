@@ -111,6 +111,28 @@ No history yet.
 {{end}}
 `
 
+const DockerQuery_Prompt_Template = `
+GOAL
+{{.Goal}}
+
+HISTORY
+
+{{if .History}}
+{{range .History}}
+--- Run {{.Run}} ---
+User Request: {{.Goal}}
+{{if .Plan}}Plan: {{.Plan}}
+{{end}}{{range .ToolCalls}}Tool {{.ToolName}} executed: {{.Command}} [status: {{.Status}}]
+{{if .Result}}Tool result: {{.Result}}
+{{end}}{{end}}{{if .Feedback}}Agent: {{.Feedback}}
+{{end}}{{if .Done}}Done: true
+{{end}}
+{{end}}
+{{else}}
+No history yet.
+{{end}}
+`
+
 const DockerQuery_System_Prompt = `
 ROLE
 You are a Docker environment assistant. You answer questions about the user's

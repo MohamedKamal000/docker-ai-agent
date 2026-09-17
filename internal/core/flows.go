@@ -37,7 +37,8 @@ func NewDockerAgentFlow(client GenkitClient, registry ToolRegistry, systemPrompt
 type DockerQueryFlow = *core.Flow[DockerQueryInput, *ai.ModelResponse, struct{}]
 
 type DockerQueryInput struct {
-	Goal string `json:"goal"`
+	Goal    string              `json:"goal"`
+	History []models.HistoryEntry `json:"history"`
 }
 
 func NewDockerQueryFlow(client GenkitClient, registry ToolRegistry, systemPrompt string) DockerQueryFlow {
@@ -48,11 +49,16 @@ func NewDockerQueryFlow(client GenkitClient, registry ToolRegistry, systemPrompt
 
 	queryFlow := genkit.DefineFlow(client.G, "DockerQuery",
 		func(ctx context.Context, input DockerQueryInput) (*ai.ModelResponse, error) {
+			parsedPrompt, err := ParsePrompt(DockerQuery_Prompt_Template, input)
+			if err != nil {
+				return nil, err
+			}
 			resp, err := genkit.Generate(ctx, client.G,
 				ai.WithModelName(client.Config.ModelName),
 				ai.WithTools(refs...),
 				ai.WithSystem(systemPrompt),
-				ai.WithPrompt("UserGoal: "+input.Goal))
+				ai.WithPrompt(parsedPrompt),
+				ai.WithReturnToolRequests(true))
 			if err != nil {
 				return nil, err
 			}

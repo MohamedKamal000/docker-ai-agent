@@ -254,18 +254,59 @@ func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt st
 }
 
 func (gal *GenkitAgentLoop) answerDockerQuery(ctx context.Context, goal string, comm *AgentCommunication) error {
-	resp, err := gal.QueryFlow.Run(ctx, DockerQueryInput{Goal: goal})
-	if err != nil {
-		comm.ToUser <- NewError(err.Error())
-		return nil
+	toolExec := NewToolExecutor(gal.SessionContext.Tools)
+	history := make([]models.HistoryEntry, 0)
+
+	for i := 0; i < 3; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		input := DockerQueryInput{Goal: goal, History: history}
+		resp, err := gal.QueryFlow.Run(ctx, input)
+		if err != nil {
+			comm.ToUser <- NewError(err.Error())
+			return nil
+		}
+
+		if len(resp.ToolRequests()) == 0 {
+			comm.ToUser <- NewFinal(models.AgentResult{
+				Structured: &models.AgentExecutionStep{
+					StepSummary: resp.Text(),
+				},
+				IsStructured: true,
+			})
+			return nil
+		}
+
+		entry := models.HistoryEntry{Run: i + 1, Goal: goal}
+		_, err = toolExec.ExecuteGenkitTool(ctx, resp, comm)
+		if err != nil {
+			comm.ToUser <- NewError(err.Error())
+		}
+
+		time.Sleep(time.Second) // give time for immediate commands to finish
+		for _, t := range gal.SessionContext.Tasks.PullCompleted() {
+			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
+				ToolName: t.Tool,
+				Command:  t.Input,
+				Status:   string(t.Status),
+				Result:   formatTaskResult(t),
+			})
+		}
+		for _, t := range gal.SessionContext.Tasks.PullRunning() {
+			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
+				ToolName: t.Tool,
+				Command:  t.Input,
+				Status:   string(t.Status),
+			})
+		}
+		history = append(history, entry)
 	}
 
-	comm.ToUser <- NewFinal(models.AgentResult{
-		Structured: &models.AgentExecutionStep{
-			StepSummary: resp.Text(),
-		},
-		IsStructured: true,
-	})
+	comm.ToUser <- NewError("Docker query reached max iterations without a final answer")
 	return nil
 }
 
