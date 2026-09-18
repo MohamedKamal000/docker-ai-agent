@@ -40,6 +40,7 @@ type toolMessage struct {
 	toolName string
 	command  string
 	output   string
+	status   string
 }
 
 type ChatSessionModel struct {
@@ -51,6 +52,7 @@ type ChatSessionModel struct {
 	messages              []string
 	toolMessages          map[int]toolMessage
 	expandedToolMessages  map[int]bool
+	lineToMessage         map[int]int
 	stateManager          *common.StateManager[*ChatSessionModel]
 	OptionsMenu           widgets.OptionsModel
 	pendingWarningMessage string
@@ -65,6 +67,7 @@ func NewChatSessionModel(modelName string) *ChatSessionModel {
 	cs.modelName = modelName
 	cs.toolMessages = make(map[int]toolMessage)
 	cs.expandedToolMessages = make(map[int]bool)
+	cs.lineToMessage = make(map[int]int)
 	cs.sidebar = NewSidebarModel()
 
 	sp := spinner.New()
@@ -110,19 +113,35 @@ func (c *ChatSessionModel) renderLogoHeader() string {
 func (c *ChatSessionModel) refreshContent() {
 	if len(c.messages) == 0 {
 		c.viewPort.SetContent(c.renderLogoHeader())
+		c.lineToMessage = make(map[int]int)
 		return
 	}
 	rendered := make([]string, len(c.messages))
 	for i, msg := range c.messages {
 		if tm, ok := c.toolMessages[i]; ok {
 			expanded := c.expandedToolMessages[i]
-			rendered[i] = common.RenderToolExecution(tm.toolName, tm.command, tm.output, expanded, c.viewPort.Width())
+			rendered[i] = common.RenderToolExecutionWithStatus(tm.toolName, tm.command, tm.output, tm.status, expanded, c.viewPort.Width())
 		} else {
 			rendered[i] = msg
 		}
 	}
 	wrapped := lipgloss.NewStyle().Width(c.viewPort.Width()).Render(strings.Join(rendered, "\n\n"))
 	c.viewPort.SetContent(wrapped)
+
+	c.lineToMessage = make(map[int]int)
+
+	line := 0
+	for i := range c.messages {
+		height := lipgloss.Height(rendered[i])
+		for j := 0; j < height; j++ {
+			c.lineToMessage[line+j] = i
+		}
+		line += height
+
+		if i < len(c.messages)-1 {
+			line++
+		}
+	}
 }
 
 func (c *ChatSessionModel) Init() tea.Cmd {
@@ -161,6 +180,7 @@ func (c *ChatSessionModel) trackToolMessage(data *core.ToolExecutionData) {
 		toolName: data.ToolName,
 		command:  data.Command,
 		output:   data.Output,
+		status:   data.Status,
 	}
 	c.messages = append(c.messages, "")
 	c.refreshContent()
@@ -173,44 +193,12 @@ func (c *ChatSessionModel) toggleToolMessage(idx int) {
 	}
 	c.expandedToolMessages[idx] = !c.expandedToolMessages[idx]
 	c.refreshContent()
-	c.viewPort.GotoBottom()
 }
 
-func (c *ChatSessionModel) toggleLastToolMessage() {
-	if len(c.toolMessages) == 0 {
-		return
-	}
-	lastIdx := -1
-	for idx := range c.toolMessages {
-		if idx > lastIdx {
-			lastIdx = idx
-		}
-	}
-	if lastIdx == -1 {
-		return
-	}
-	c.toggleToolMessage(lastIdx)
-}
-
-func (c *ChatSessionModel) messageIndexAtLine(clickY int) int {
-	if len(c.messages) == 0 {
-		return -1
-	}
-	line := 0
-	for i, msg := range c.messages {
-		var rendered string
-		if tm, ok := c.toolMessages[i]; ok {
-			expanded := c.expandedToolMessages[i]
-			rendered = common.RenderToolExecution(tm.toolName, tm.command, tm.output, expanded, c.viewPort.Width())
-		} else {
-			rendered = msg
-		}
-		rendered = lipgloss.NewStyle().Width(c.viewPort.Width()).Render(rendered)
-		height := lipgloss.Height(rendered)
-		if clickY >= line && clickY < line+height {
-			return i
-		}
-		line += height
+func (c *ChatSessionModel) messageIndexAtClick(clickY int) int {
+	contentLine := clickY + c.viewPort.YOffset()
+	if idx, ok := c.lineToMessage[contentLine]; ok {
+		return idx
 	}
 	return -1
 }
