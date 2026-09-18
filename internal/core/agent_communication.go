@@ -34,6 +34,7 @@ type ToolExecutionData struct {
 	ToolName string
 	Command  string
 	Output   string
+	Status   string // "running", "completed", "failed"
 }
 
 type AiResponse struct {
@@ -92,6 +93,20 @@ func NewToolExecution(toolName, command, output string) AiResponse {
 			ToolName: toolName,
 			Command:  command,
 			Output:   output,
+			Status:   "completed",
+		},
+	}
+}
+
+func NewToolExecutionWithStatus(toolName, command, output, status string) AiResponse {
+	return AiResponse{
+		Type:    ToolExecution,
+		Message: fmt.Sprintf("%s: %s", toolName, command),
+		ToolData: &ToolExecutionData{
+			ToolName: toolName,
+			Command:  command,
+			Output:   output,
+			Status:   status,
 		},
 	}
 }

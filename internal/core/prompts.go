@@ -281,7 +281,7 @@ Instructions:
 - Do not mention that retrieved knowledge or RAG was used.
 `
 
-const GENERAL_QUESTION_USER_PROMPT = `
+const GENERAL_QUESTION_WITH_RAG_PROMPT = `
 RETRIEVED KNOWLEDGE
 
 {{if .RagResult}}

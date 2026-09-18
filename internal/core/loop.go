@@ -147,6 +147,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 		}
 
 		for _, t := range gal.SessionContext.Tasks.PullCompleted() {
+			comm.ToUser <- NewToolExecutionWithStatus(t.Tool, t.Input, formatTaskResult(t), string(t.Status))
 			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
 				ToolName: t.Tool,
 				Command:  t.Input,
@@ -155,6 +156,7 @@ func (gal *GenkitAgentLoop) Run(ctx context.Context, userGoal string, comm *Agen
 			})
 		}
 		for _, t := range gal.SessionContext.Tasks.PullRunning() {
+			comm.ToUser <- NewToolExecutionWithStatus(t.Tool, t.Input, formatTaskResult(t), string(t.Status))
 			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
 				ToolName: t.Tool,
 				Command:  t.Input,
@@ -246,7 +248,7 @@ func (gal *GenkitAgentLoop) answerGeneralQuestion(ctx context.Context, prompt st
 		if err != nil {
 			return err
 		}
-		prompt, err = ParsePrompt(GENERAL_QUESTION_USER_PROMPT, map[string]any{
+		prompt, err = ParsePrompt(GENERAL_QUESTION_WITH_RAG_PROMPT, map[string]any{
 			"Goal":      prompt,
 			"RagResult": result,
 		})
@@ -300,6 +302,12 @@ func (gal *GenkitAgentLoop) answerDockerQuery(ctx context.Context, goal string, 
 		}
 
 		entry := models.HistoryEntry{Run: i + 1, Goal: goal}
+
+		for _, req := range resp.ToolRequests() {
+			command := extractCommandFromInput(req.ToolRequest.Input)
+			comm.ToUser <- NewToolExecutionWithStatus(req.ToolRequest.Name, command, "", "running")
+		}
+
 		_, err = toolExec.ExecuteGenkitTool(ctx, resp, comm)
 		if err != nil {
 			comm.ToUser <- NewError(err.Error())
@@ -307,6 +315,7 @@ func (gal *GenkitAgentLoop) answerDockerQuery(ctx context.Context, goal string, 
 
 		time.Sleep(time.Second) // give time for immediate commands to finish
 		for _, t := range gal.SessionContext.Tasks.PullCompleted() {
+			comm.ToUser <- NewToolExecutionWithStatus(t.Tool, t.Input, formatTaskResult(t), "completed")
 			entry.ToolCalls = append(entry.ToolCalls, models.ToolCallInfo{
 				ToolName: t.Tool,
 				Command:  t.Input,

@@ -11,8 +11,7 @@ func NormalStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessio
 	switch msg := msg.(type) {
 	case tea.MouseClickMsg:
 		if msg.Button == tea.MouseLeft {
-			absLine := msg.Y + c.viewPort.YOffset()
-			idx := c.messageIndexAtLine(absLine)
+			idx := c.messageIndexAtClick(msg.Y)
 			if idx >= 0 {
 				c.toggleToolMessage(idx)
 			}
@@ -21,11 +20,6 @@ func NormalStateExecute(s *common.StateManager[*ChatSessionModel], c *ChatSessio
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "enter":
-			if c.ta.Value() == "" {
-				c.toggleLastToolMessage()
-				return c, nil
-			}
-
 			sent := c.ta.Value()
 			c.sendUserMessage(sent)
 			s.SwitchTo(AgentRunningState.Value())

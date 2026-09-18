@@ -161,7 +161,7 @@ func RenderToolExecutionWithStatus(toolName, command, output string, status stri
 	toolLabel := StylePrimary.Render(toolName)
 	header := fmt.Sprintf("%s %s: %s", statusIcon, toolLabel, command)
 
-	if !expanded && status != "running" {
+	if !expanded {
 		return renderBlock(header, "", width, borderColor)
 	}
 
