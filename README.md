@@ -1,5 +1,5 @@
 <div align="center">
-<img src="logo-image.png" alt="docker-ai logo" width="1388"/>
+<img src="assets/logo-image.png" alt="docker-ai logo" width="1388"/>
 
 </div>
 
@@ -11,6 +11,10 @@
 # Docker AI Agent (docker-ai)
 
 A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI, without the need to install Docker Desktop. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
+
+## Demo
+
+![Demo](assets/demo.gif)
 
 ## Features
 
