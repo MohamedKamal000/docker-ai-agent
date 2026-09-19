@@ -3,6 +3,11 @@
 
 </div>
 
+[![codecov](https://codecov.io/gh/MohamedKamal000/docker-ai-agent/graph/badge.svg)](https://codecov.io/gh/MohamedKamal000/docker-ai-agent)
+[![License](https://img.shields.io/github/license/MohamedKamal000/docker-cli)](https://github.com/MohamedKamal000/docker-cli/blob/main/LICENSE)
+[![Go](https://img.shields.io/github/go-mod/go-version/MohamedKamal000/docker-cli)](https://github.com/MohamedKamal000/docker-cli)
+[![Go CI](https://github.com/MohamedKamal000/docker-ai-agent/actions/workflows/Go.yml/badge.svg)](https://github.com/MohamedKamal000/docker-ai-agent/actions/workflows/Go.yml)
+
 # Docker AI Agent
 
 A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI, without the need to install Docker Desktop. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
