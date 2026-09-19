@@ -4,31 +4,13 @@
 </div>
 
 [![codecov](https://codecov.io/gh/MohamedKamal000/docker-ai-agent/graph/badge.svg)](https://codecov.io/gh/MohamedKamal000/docker-ai-agent)
-[![License](https://img.shields.io/github/license/MohamedKamal000/docker-cli)](https://github.com/MohamedKamal000/docker-cli/blob/main/LICENSE)
-[![Go](https://img.shields.io/github/go-mod/go-version/MohamedKamal000/docker-cli)](https://github.com/MohamedKamal000/docker-cli)
+[![License](https://img.shields.io/github/license/MohamedKamal000/docker-ai-agent)](https://github.com/MohamedKamal000/docker-ai-agent/blob/main/LICENSE)
+[![Go](https://img.shields.io/github/go-mod/go-version/MohamedKamal000/docker-ai-agent)](https://github.com/MohamedKamal000/docker-ai-agent)
 [![Go CI](https://github.com/MohamedKamal000/docker-ai-agent/actions/workflows/Go.yml/badge.svg)](https://github.com/MohamedKamal000/docker-ai-agent/actions/workflows/Go.yml)
 
-# Docker AI Agent
+# Docker AI Agent (docker-ai)
 
 A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI, without the need to install Docker Desktop. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
-
-## Status
-
-This project is in active development. Core features are in place, including a Docker SDK wrapper, prompt templates, a Genkit client for LLM integration, a tool registry, and a tool execution loop. The CLI is functional for agent-based chat. Next steps involve adding more tools, implementing a user confirmation flow, and building out planned commands like `initialize-rag` and `enable-rag`.
-
-## Architecture
-
-![Architecture](./docs/src/images/project-arch.png)
-
-At a high level:
-
-- TUI (Bubble Tea) provides a chat interface where users can interact with the agent in real time.
-- CLI (Cobra) parses commands/flags and launches the TUI.
-- The AI agent builds prompts from the current Docker context and user intent.
-- A main loop selects the next action, maps it to a tool call from the **Tool Registry**, and stores results in memory.
-- The **Tool Registry** discovers and manages available tools (`internal/tools`).
-- The Docker SDK wrapper provides structured access to containers, images, volumes, and networks.
-- LLM providers are pluggable via Genkit (Gemini, OpenAI, Anthropic, Ollama, DeepSeek, Kimi, Qwen, Grok).
 
 ## Features
 
@@ -38,12 +20,6 @@ At a high level:
 - **Tool Registry and Executor** for dynamically calling Docker commands (`internal/core/tool_registry.go`, `internal/tools/docker_commands_tool.go`).
 - TUI chat interface for interactive agent conversations (`tui/`).
 - CLI commands for agent chat and planned docker workflows (`cmd/*`).
-
-## Prerequisites
-
-- Go 1.25.0
-- Docker Engine available locally for Docker SDK calls.
-- One of the supported LLM provider API keys.
 
 ## Configuration
 
@@ -117,9 +93,9 @@ Ollama does not require an API key.
 Run `agent-chat` (or its shortcut `ac`) to launch the interactive TUI session:
 
 ```bash
-go run . agent-chat
+docker-ai-agent agent-chat
 # or
-go run . ac
+docker-ai-agent ac
 ```
 
 The TUI provides a chat interface where you can type messages, view agent responses, and interact with the agent in real time.
@@ -131,29 +107,18 @@ The TUI provides a chat interface where you can type messages, view agent respon
 ### Example
 
 ```bash
-go run . agent-chat -c ./my-config.json
+docker-ai-agent agent-chat -c ./my-config.json
 ```
 
 ## CLI commands (current)
 
 - `agent-chat` (`ac`): Launch the interactive TUI chat session to ask Docker-related questions.
-- `initialize-rag`: Planned – set up retrieval augmented generation so the agent can ground answers in indexed documentation.
-- `enable-rag`: Planned – activate RAG mode for the agent session.
+- `containerize` (`c`): Planned – let the AI scan your current directory and generate a Dockerfile.
+- `initialize-rag` (`ir`): Planned – set up retrieval augmented generation so the agent can ground answers in indexed documentation.
 
 ## Documentation
 
 Full documentation is built with [mdBook](https://rust-lang.github.io/mdBook/) and lives in the [`docs/`](./docs) directory, covering getting started guides (including how to obtain and store API keys), usage, architecture, and a configuration reference.
-
-## Project layout
-
-```
-cmd/                 Cobra CLI commands
-internal/core/       Agent loop, prompts, Genkit client, tool registry
-internal/docker/     Docker SDK wrapper + exec helpers
-internal/models/     Shared data models
-internal/tools/      Tool definitions (e.g., Docker commands)
-tui/                 Bubble Tea TUI (chat interface, screens, widgets)
-```
 
 ## Contributing
 
