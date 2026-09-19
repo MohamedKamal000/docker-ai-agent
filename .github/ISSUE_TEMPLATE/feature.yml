@@ -1,0 +1,51 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the feature you want to add.
+      placeholder: What is the feature?
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this feature solve?
+      placeholder: What problem or limitation does this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: Describe how you think the feature should work.
+      placeholder: How should this feature work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature-usage
+    attributes:
+      label: Feature usage example
+      description: Provide an example of how the feature would be used.
+      placeholder: |
+        Example:
+        docker-cli agent-chat --example
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-content
+    attributes:
+      label: Additional content
+      description: Add any other relevant information, ideas, or context.
+    validations:
+      required: false

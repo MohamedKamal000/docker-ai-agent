@@ -1,0 +1,77 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels:
+  - bug
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the bug and what went wrong.
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Describe the steps required to reproduce the bug.
+      placeholder: |
+        1. Run ...
+        2. Configure ...
+        3. Execute ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe what you expected to happen.
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: Describe what actually happened.
+      placeholder: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and error messages
+      description: Include any relevant logs, errors, or stack traces.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide information about the environment where the bug occurred.
+      placeholder: |
+        OS:
+        Go version:
+        Docker version:
+        Docker CLI version:
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-content
+    attributes:
+      label: Additional content
+      description: Add any other relevant information, screenshots, or context.
+      placeholder: Anything else that might help?
+    validations:
+      required: false
