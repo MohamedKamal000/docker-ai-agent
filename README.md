@@ -10,7 +10,7 @@
 
 # Docker AI Agent (docker-ai)
 
-A Go-based AI agent that helps you inspect and operate local Docker environments through a terminal UI, without the need to install Docker Desktop. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
+An AI agent that helps you inspect and operate local Docker environments through a terminal UI, without the need to install Docker Desktop. It combines a Docker SDK wrapper with LLM-driven planning to propose the next action, then executes tooling in a controlled loop.
 
 ## Demo
 
