@@ -10,7 +10,7 @@ on:
 
 jobs:
   fmt:
-    name: Check code formatting
+    name: Format Code
     runs-on: ubuntu-latest
 
     steps:
@@ -44,5 +44,11 @@ jobs:
         run: go mod download
 
       - name: Run tests
-        run: go test -timeout 20m ./...
+        run: go test -count=1 -timeout=20m -coverprofile=coverage.out  ./...
         shell: bash
+
+      - name: Upload coverage
+        if: github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
