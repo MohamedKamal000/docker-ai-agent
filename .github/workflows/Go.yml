@@ -47,6 +47,9 @@ jobs:
         run: go test -count=1 -timeout=20m -coverprofile=coverage.out  ./...
         shell: bash
 
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -1
+
       - name: Upload coverage
         if: github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v5
